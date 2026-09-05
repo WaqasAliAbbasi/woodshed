@@ -1,4 +1,4 @@
-# Build the static Vite app, then serve it from nginx. No runtime dependencies,
+# Build the static Vite app, then serve it from Caddy. No runtime dependencies,
 # no state, so a distroless-style two-stage build is all there is to it.
 FROM node:24-alpine AS build
 
@@ -14,7 +14,7 @@ RUN npm ci --ignore-scripts
 COPY . .
 RUN npm run build
 
-FROM nginx:alpine
+FROM caddy:2-alpine
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /app/dist /usr/share/caddy

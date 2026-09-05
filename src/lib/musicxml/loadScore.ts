@@ -1,4 +1,5 @@
 import { OpenSheetMusicDisplay } from 'opensheetmusicdisplay'
+import { getDefaultMusicColor } from '../theme'
 
 export interface LoadedScore {
   osmd: OpenSheetMusicDisplay
@@ -26,6 +27,10 @@ export async function loadScore(container: HTMLElement, musicXml: string, signal
     autoResize: false,
     backend: 'svg',
     drawingParameters: 'compacttight',
+    // OSMD defaults to solid black for every musical element (noteheads,
+    // stems, clefs, barlines, ...), which is invisible against a dark page
+    // background — match whatever the app's current theme actually is.
+    defaultColorMusic: getDefaultMusicColor(),
   })
   await osmd.load(musicXml)
   if (signal?.aborted) {

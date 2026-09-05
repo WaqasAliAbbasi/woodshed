@@ -1,7 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { buildExpectedTimeline, getBeatsPerMeasure } from './buildExpectedTimeline'
+import {
+  buildExpectedTimeline,
+  getBeatsPerMeasure,
+  getCountInBeats,
+  getDefaultTempoBpm,
+  getStaffCount,
+  getTempoPresets,
+} from './buildExpectedTimeline'
 import { loadScore } from './loadScore'
 import type { ExpectedChordEvent } from './types'
 
@@ -82,11 +89,167 @@ describe('buildExpectedTimeline', () => {
   })
 })
 
+describe('buildExpectedTimeline hand filtering', () => {
+  it('splits notes between hands with no overlap and no loss, matching the merged (both) timeline', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const { osmd } = await loadScore(container, musicXml)
+    const range = { startMeasure: 1, endMeasure: 4 }
+    const both = buildExpectedTimeline(osmd, range, 120, 'both')
+    const right = buildExpectedTimeline(osmd, range, 120, 'right')
+    const left = buildExpectedTimeline(osmd, range, 120, 'left')
+
+    const noteCount = (events: ExpectedChordEvent[]) => events.reduce((sum, e) => sum + e.midiNumbers.length, 0)
+
+    expect(noteCount(right) + noteCount(left)).toBe(noteCount(both))
+    expect(noteCount(right)).toBeGreaterThan(0)
+    expect(noteCount(left)).toBeGreaterThan(0)
+  })
+
+  it('right-hand-only notes sit higher on average than left-hand-only notes', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const { osmd } = await loadScore(container, musicXml)
+    const range = { startMeasure: 1, endMeasure: 4 }
+    const right = buildExpectedTimeline(osmd, range, 120, 'right')
+    const left = buildExpectedTimeline(osmd, range, 120, 'left')
+    const averageMidi = (events: ExpectedChordEvent[]) => {
+      const all = events.flatMap((e) => e.midiNumbers)
+      return all.reduce((sum, midi) => sum + midi, 0) / all.length
+    }
+    expect(averageMidi(right)).toBeGreaterThan(averageMidi(left))
+  })
+
+  it('a hand-filtered timeline still starts at onsetSec 0 on its own first note', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const { osmd } = await loadScore(container, musicXml)
+    const range = { startMeasure: 1, endMeasure: 4 }
+    const right = buildExpectedTimeline(osmd, range, 120, 'right')
+    const left = buildExpectedTimeline(osmd, range, 120, 'left')
+    expect(right[0].onsetSec).toBe(0)
+    expect(left[0].onsetSec).toBe(0)
+  })
+})
+
+describe('getStaffCount', () => {
+  it('counts 2 staves for a grand-staff piano piece', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const { osmd } = await loadScore(container, musicXml)
+    expect(getStaffCount(osmd)).toBe(2)
+  })
+
+  it('counts 1 staff for a single-staff piece', async () => {
+    const compoundXml = readFileSync(resolve(__dirname, './__fixtures__/compound-6-8.musicxml'), 'utf-8')
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const { osmd } = await loadScore(container, compoundXml)
+    expect(getStaffCount(osmd)).toBe(1)
+  })
+})
+
 describe('getBeatsPerMeasure', () => {
   it('reads the actual 4/4 time signature from the Clementi fixture', async () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
     const { osmd } = await loadScore(container, musicXml)
     expect(getBeatsPerMeasure(osmd, 1)).toBe(4)
+  })
+
+  it('rescales a compound meter (6/8) to quarter-note-equivalent beats, not the raw numerator', async () => {
+    const compoundXml = readFileSync(resolve(__dirname, './__fixtures__/compound-6-8.musicxml'), 'utf-8')
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const { osmd } = await loadScore(container, compoundXml)
+    // 6/8 -> 3 quarter-note beats per measure, not the raw numerator (6),
+    // which would make the count-in/beat-indicator run 2x too long.
+    expect(getBeatsPerMeasure(osmd, 1)).toBe(3)
+  })
+})
+
+describe('getCountInBeats', () => {
+  it('counts in a full lead-in bar for a normal (non-pickup) start measure', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const { osmd } = await loadScore(container, musicXml)
+    expect(getCountInBeats(osmd, 1, 1)).toBe(4)
+  })
+
+  it('scales the lead-in bar count by countInMeasures for a normal start measure', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const { osmd } = await loadScore(container, musicXml)
+    expect(getCountInBeats(osmd, 1, 2)).toBe(8)
+  })
+
+  it('counts in only the missing beats for a pickup/anacrusis start measure', async () => {
+    // "Calypso Carnival" (Alfred Book 2) shape: a 1-beat pickup (two eighth
+    // notes) in a nominal 4/4 bar, landing on beat 4 — count-in should click
+    // "1-2-3" (3 beats), not a full "1-2-3-4" bar, so the pickup coincides
+    // with where the click would fall instead of one beat too late.
+    //
+    // Measure number is 0, not 1: OSMD auto-detects an opening pickup as an
+    // "implicit" measure and numbers it 0, shifting every later measure
+    // down by one relative to the raw XML numbering (see
+    // buildExpectedTimeline's getSourceMeasure).
+    const pickupXml = readFileSync(resolve(__dirname, './__fixtures__/pickup-measure.musicxml'), 'utf-8')
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const { osmd } = await loadScore(container, pickupXml)
+    expect(getCountInBeats(osmd, 0, 1)).toBe(3)
+  })
+
+  it('a pickup start measure does not affect a range starting on a later, full measure', async () => {
+    const pickupXml = readFileSync(resolve(__dirname, './__fixtures__/pickup-measure.musicxml'), 'utf-8')
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const { osmd } = await loadScore(container, pickupXml)
+    // The fixture's second (full) measure — OSMD numbers it 1, since the
+    // pickup ahead of it took 0.
+    expect(getCountInBeats(osmd, 1, 1)).toBe(4)
+  })
+})
+
+describe('getDefaultTempoBpm', () => {
+  it('reads the tempo marking from a piece that has one', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const { osmd } = await loadScore(container, musicXml)
+    expect(getDefaultTempoBpm(osmd)).toBe(156)
+  })
+
+  it('falls back to a default tempo for a piece with no tempo marking', async () => {
+    const compoundXml = readFileSync(resolve(__dirname, './__fixtures__/compound-6-8.musicxml'), 'utf-8')
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const { osmd } = await loadScore(container, compoundXml)
+    expect(getDefaultTempoBpm(osmd)).toBe(80)
+  })
+})
+
+describe('getTempoPresets', () => {
+  it('rounds 1/3 and 2/3 of the target to standard metronome markings, keeping the target exact', () => {
+    expect(getTempoPresets(120)).toEqual([40, 80, 120])
+  })
+
+  it('rounds to the nearest dial marking even when the fraction falls between two', () => {
+    // 156/3 = 52 (exact); 156*2/3 = 104 (exact)
+    expect(getTempoPresets(156)).toEqual([52, 104, 156])
+  })
+
+  it('dedupes presets that collapse together for a very slow target', () => {
+    const presets = getTempoPresets(40)
+    expect(presets).toEqual([...new Set(presets)])
+    expect(presets).toContain(40)
+  })
+
+  it('never suggests a preset outside the practice tempo range', () => {
+    for (const target of [20, 40, 80, 156, 240]) {
+      for (const preset of getTempoPresets(target)) {
+        expect(preset).toBeGreaterThanOrEqual(20)
+        expect(preset).toBeLessThanOrEqual(240)
+      }
+    }
   })
 })

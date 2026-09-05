@@ -95,6 +95,26 @@ describe('findMeasureNumberAt', () => {
     expect(findMeasureNumberAt(osmd, midGap)).toBe(1)
   })
 
+  it('resolves a click on a pickup/anacrusis measure to measure 0, not undefined or the next measure', async () => {
+    // OSMD numbers a piece-opening pickup measure 0 (an "implicit" measure,
+    // auto-detected from its short duration) — a real measure that must
+    // stay clickable, not treated like the negative-numbered ghost measures
+    // OSMD can also emit after the final barline.
+    const pickupXml = readFileSync(resolve(__dirname, './__fixtures__/pickup-measure.musicxml'), 'utf-8')
+    const container = document.createElement('div')
+    Object.defineProperty(container, 'offsetWidth', { value: PAGE_WIDTH_PX })
+    document.body.appendChild(container)
+    const { osmd: pickupOsmd } = await loadScore(container, pickupXml)
+    const pickupMeasure = allMeasures(pickupOsmd).find((m) => m.MeasureNumber === 0)
+    expect(pickupMeasure).toBeDefined()
+    const bb = pickupMeasure!.PositionAndShape
+    const center = new PointF2D(
+      bb.AbsolutePosition.x + (bb.BorderLeft + bb.BorderRight) / 2,
+      bb.AbsolutePosition.y + (bb.BorderTop + bb.BorderBottom) / 2,
+    )
+    expect(findMeasureNumberAt(pickupOsmd, center)).toBe(0)
+  })
+
   it('ignores clicks far from any measure', () => {
     let maxBottom = 0
     for (const measure of measures) {

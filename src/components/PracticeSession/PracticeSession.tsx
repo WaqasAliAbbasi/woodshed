@@ -1,14 +1,24 @@
 import type { GraphicalNote, OpenSheetMusicDisplay } from 'opensheetmusicdisplay'
-import { useEffect, useReducer, useRef, useState } from 'react'
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { correlateClock, getAudioContext, midiTimeStampToAudioTime, type ClockCorrelation } from '../../lib/clock/audioClock'
 import { Metronome } from '../../lib/clock/metronome'
 import { recordAttempt } from '../../lib/db/attemptsRepo'
-import type { Piece, Section } from '../../lib/db/db'
-import { createSection, listSectionsForPiece } from '../../lib/db/sectionsRepo'
-import { advanceCursorToMeasure, buildExpectedTimeline, getBeatsPerMeasure } from '../../lib/musicxml/buildExpectedTimeline'
+import type { Piece } from '../../lib/db/db'
+import { HAND_LABEL, resolveSection } from '../../lib/db/resolveSection'
+import {
+  advanceCursorToMeasure,
+  buildExpectedTimeline,
+  getBeatsPerMeasure,
+  getCountInBeats,
+  getDefaultTempoBpm,
+  getTempoPresets,
+  type HandFilter,
+} from '../../lib/musicxml/buildExpectedTimeline'
 import type { ExpectedChordEvent, MeasureRange } from '../../lib/musicxml/types'
 import { ACCEPT_MS, NoteMatcher } from '../../lib/scoring/matcher'
+import { getDefaultMusicColor } from '../../lib/theme'
 import type { MidiNoteEvent } from '../../lib/midi/midiEvents'
+import { HandFilterControl } from '../HandFilterControl/HandFilterControl'
 import type { UseMidiInputResult } from '../InputSourceSelector/useMidiInput'
 import { TempoControl } from '../TempoControl/TempoControl'
 import { initialPracticeState, practiceReducer } from './practiceMachine'
@@ -18,26 +28,15 @@ const LOOP_END_GRACE_SEC = 0.5
 const LEAD_IN_SEC = 0.15
 const CORRECT_COLOR = '#22c55e'
 const WRONG_COLOR = '#ef4444'
-const DEFAULT_NOTE_COLOR = 'black'
-
-async function resolveSection(pieceId: string, range: MeasureRange, tempoBpm: number): Promise<Section> {
-  const sections = await listSectionsForPiece(pieceId)
-  const existing = sections.find((s) => s.startMeasure === range.startMeasure && s.endMeasure === range.endMeasure)
-  if (existing) return existing
-  return createSection({
-    pieceId,
-    label: `Measures ${range.startMeasure}-${range.endMeasure}`,
-    startMeasure: range.startMeasure,
-    endMeasure: range.endMeasure,
-    defaultTempoBpm: tempoBpm,
-  })
-}
 
 export function PracticeSession({
   osmd,
   piece,
   midi,
   range,
+  handFilter,
+  onHandFilterChange,
+  staffCount,
   onEditableChange,
   onAttemptRecorded,
 }: {
@@ -45,10 +44,19 @@ export function PracticeSession({
   piece: Piece
   midi: UseMidiInputResult
   range: MeasureRange
+  handFilter: HandFilter
+  onHandFilterChange: (handFilter: HandFilter) => void
+  /** Pieces with only one staff have nothing to isolate — the hand picker is hidden in that case. */
+  staffCount: number
   onEditableChange: (editable: boolean) => void
   onAttemptRecorded: (sectionId: string) => void
 }) {
-  const [tempoBpm, setTempoBpm] = useState(80)
+  const [tempoBpm, setTempoBpm] = useState(() => getDefaultTempoBpm(osmd))
+  // The piece's own marked tempo, kept separate from `tempoBpm` (which the
+  // student can freely change) so the presets stay anchored to a fixed
+  // "full speed" target rather than drifting to whatever's currently dialed in.
+  const idealTempoBpm = useMemo(() => getDefaultTempoBpm(osmd), [osmd])
+  const tempoPresets = useMemo(() => getTempoPresets(idealTempoBpm), [idealTempoBpm])
   const [state, dispatch] = useReducer(practiceReducer, initialPracticeState)
   const [currentBeat, setCurrentBeat] = useState(0)
   const [beatsPerMeasure, setBeatsPerMeasure] = useState(4)
@@ -66,10 +74,10 @@ export function PracticeSession({
 
   const editable = state.status === 'PieceLoaded' || state.status === 'SectionConfigured'
 
-  // Keep the reducer's copy of range/tempo in sync while the user can still edit them.
+  // Keep the reducer's copy of range/tempo/hand-filter in sync while the user can still edit them.
   useEffect(() => {
-    if (editable) dispatch({ type: 'configureSection', range, tempoBpm })
-  }, [range, tempoBpm, editable])
+    if (editable) dispatch({ type: 'configureSection', range, tempoBpm, handFilter })
+  }, [range, tempoBpm, handFilter, editable])
 
   // Feed MIDI note-on events into the active matcher only while actually attempting.
   useEffect(() => {
@@ -112,10 +120,10 @@ export function PracticeSession({
     correlationRef.current = correlateClock(audioContext)
 
     for (const note of coloredNotesRef.current) {
-      note.setColor(DEFAULT_NOTE_COLOR, { applyToNoteheads: true })
+      note.setColor(getDefaultMusicColor(), { applyToNoteheads: true })
     }
     coloredNotesRef.current = []
-    const events = buildExpectedTimeline(osmd, state.range, state.tempoBpm)
+    const events = buildExpectedTimeline(osmd, state.range, state.tempoBpm, state.handFilter)
     eventsRef.current = events
     matcherRef.current = new NoteMatcher(events)
     nextEventIndexRef.current = 0
@@ -123,7 +131,7 @@ export function PracticeSession({
 
     const measureBeats = getBeatsPerMeasure(osmd, state.range.startMeasure)
     setBeatsPerMeasure(measureBeats)
-    const countInBeats = measureBeats * COUNT_IN_MEASURES
+    const countInBeats = getCountInBeats(osmd, state.range.startMeasure, COUNT_IN_MEASURES)
 
     const metronome = new Metronome(audioContext, state.tempoBpm, measureBeats)
     metronome.start(audioContext.currentTime + LEAD_IN_SEC, (beatIndex, timeSec) => {
@@ -220,7 +228,7 @@ export function PracticeSession({
   const handleStart = async () => {
     if (state.status !== 'SectionConfigured') return
     onEditableChange(false)
-    const section = await resolveSection(piece.id, state.range, state.tempoBpm)
+    const section = await resolveSection(piece.id, state.range, state.tempoBpm, state.handFilter)
     sectionIdRef.current = section.id
     dispatch({ type: 'start' })
   }
@@ -241,6 +249,7 @@ export function PracticeSession({
         <div className="practice-controls">
           <span className="practice-section-label">
             Measures {range.startMeasure}–{range.endMeasure}
+            {HAND_LABEL[handFilter]}
           </span>
 
           {(state.status === 'CountingIn' || state.status === 'Attempting') && (
@@ -255,10 +264,19 @@ export function PracticeSession({
             </>
           )}
 
-          <TempoControl tempoBpm={tempoBpm} onChange={setTempoBpm} disabled={!editable} />
+          <TempoControl tempoBpm={tempoBpm} onChange={setTempoBpm} disabled={!editable} presets={tempoPresets} />
+
+          {staffCount > 1 && (
+            <HandFilterControl handFilter={handFilter} onChange={onHandFilterChange} disabled={!editable} />
+          )}
 
           {state.status === 'SectionConfigured' && (
-            <button type="button" onClick={() => void handleStart()} disabled={!midi.connected}>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => void handleStart()}
+              disabled={!midi.connected}
+            >
               Start
             </button>
           )}
@@ -273,12 +291,19 @@ export function PracticeSession({
                 {state.aborted && (
                   <span className="banner banner-warning practice-result-aborted">Stopped early</span>
                 )}
-                <span className="practice-result-text">
-                  Pitch {Math.round(state.aggregate.pitchAccuracy * 100)}% · Timing{' '}
-                  {Math.round(state.aggregate.timingAccuracy * 100)}% · {state.aggregate.correct}/
-                  {state.aggregate.expected} notes · {state.aggregate.missed} missed · {state.aggregate.extra} wrong ·{' '}
-                  {state.aggregate.onTime} on / {state.aggregate.early} early / {state.aggregate.late} late
-                </span>
+                {state.aggregate.expected === 0 ? (
+                  <span className="practice-result-text">
+                    No {handFilter === 'both' ? '' : `${handFilter}-hand `}notes in this section — try a different range
+                    or hand.
+                  </span>
+                ) : (
+                  <span className="practice-result-text">
+                    Pitch {Math.round(state.aggregate.pitchAccuracy * 100)}% · Timing{' '}
+                    {Math.round(state.aggregate.timingAccuracy * 100)}% · {state.aggregate.correct}/
+                    {state.aggregate.expected} notes · {state.aggregate.missed} missed · {state.aggregate.extra} wrong ·{' '}
+                    {state.aggregate.onTime} on / {state.aggregate.early} early / {state.aggregate.late} late
+                  </span>
+                )}
               </div>
               <button type="button" onClick={() => dispatch({ type: 'repeat' })}>
                 Repeat

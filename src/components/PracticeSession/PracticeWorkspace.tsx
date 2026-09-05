@@ -1,6 +1,7 @@
 import type { OpenSheetMusicDisplay } from 'opensheetmusicdisplay'
 import { useCallback, useState } from 'react'
 import type { Piece } from '../../lib/db/db'
+import { getStaffCount, type HandFilter } from '../../lib/musicxml/buildExpectedTimeline'
 import type { MeasureRange } from '../../lib/musicxml/types'
 import type { UseMidiInputResult } from '../InputSourceSelector/useMidiInput'
 import { ScoreViewer } from '../ScoreViewer/ScoreViewer'
@@ -28,6 +29,8 @@ export function PracticeWorkspace({
   const [range, setRange] = useState<MeasureRange | undefined>(undefined)
   const [anchorMeasure, setAnchorMeasure] = useState<number | undefined>(undefined)
   const [editable, setEditable] = useState(true)
+  const [handFilter, setHandFilter] = useState<HandFilter>('both')
+  const [staffCount, setStaffCount] = useState(1)
 
   // The range is derived from the loaded score once OSMD is ready, so it's
   // initialized in the onReady handler rather than in an effect (which would
@@ -36,7 +39,18 @@ export function PracticeWorkspace({
   const handleOsmdReady = useCallback((loaded: OpenSheetMusicDisplay | undefined) => {
     setOsmd(loaded)
     if (loaded && range === undefined) {
-      setRange({ startMeasure: 1, endMeasure: Math.min(DEFAULT_RANGE_LENGTH_MEASURES, loaded.Sheet.SourceMeasures.length) })
+      const measures = loaded.Sheet.SourceMeasures
+      // Not necessarily 1: a piece that opens with a pickup/anacrusis
+      // measure gets that measure numbered 0 by OSMD, not 1 (see
+      // buildExpectedTimeline's getSourceMeasure) — defaulting to a
+      // hardcoded startMeasure: 1 would silently skip it.
+      const firstMeasureNumber = measures[0]?.MeasureNumber ?? 1
+      const lastMeasureNumber = measures[measures.length - 1]?.MeasureNumber ?? firstMeasureNumber
+      setRange({
+        startMeasure: firstMeasureNumber,
+        endMeasure: Math.min(firstMeasureNumber + DEFAULT_RANGE_LENGTH_MEASURES - 1, lastMeasureNumber),
+      })
+      setStaffCount(getStaffCount(loaded))
     }
   }, [range])
 
@@ -68,6 +82,7 @@ export function PracticeWorkspace({
         range={range}
         clickable={editable}
         onMeasureClick={handleMeasureClick}
+        handFilter={handFilter}
       />
       {osmd && range && (
         <PracticeSession
@@ -75,6 +90,9 @@ export function PracticeWorkspace({
           piece={piece}
           midi={midi}
           range={range}
+          handFilter={handFilter}
+          onHandFilterChange={setHandFilter}
+          staffCount={staffCount}
           onEditableChange={handleEditableChange}
           onAttemptRecorded={onAttemptRecorded}
         />

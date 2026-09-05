@@ -147,4 +147,17 @@ describe('NoteMatcher', () => {
     const result = matcher.noteOn(61, 1.0)
     expect(result.graphicalNote).toBeUndefined()
   })
+
+  it('a repeated pitch at closely-spaced onsets (dense tuplets) still matches the nearer onset, not an adjacent one', () => {
+    // Two same-pitch onsets 150ms apart — tight enough to occur in a fast
+    // tuplet passage. Each play should attach to whichever onset it's
+    // actually closest to in time, not just whichever is still open.
+    const matcher = new NoteMatcher([event(1.0, [60]), event(1.15, [60])])
+    const first = matcher.noteOn(60, 1.02) // closer to the first onset (20ms) than the second (130ms)
+    expect(first.expectedOnsetSec).toBe(1.0)
+    const second = matcher.noteOn(60, 1.13) // closer to the second onset (20ms) than the first (130ms)
+    expect(second.expectedOnsetSec).toBeCloseTo(1.15)
+    const { aggregate } = matcher.finalize()
+    expect(aggregate).toMatchObject({ expected: 2, correct: 2, missed: 0, extra: 0 })
+  })
 })

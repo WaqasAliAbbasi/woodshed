@@ -30,5 +30,15 @@ export async function renamePiece(id: string, title: string): Promise<Piece> {
 
 export async function deletePiece(id: string): Promise<void> {
   const db = await getDb()
-  await db.delete('pieces', id)
+  const tx = db.transaction(['pieces', 'sections', 'attempts'], 'readwrite')
+  const [sections, attempts] = await Promise.all([
+    tx.objectStore('sections').index('pieceId').getAllKeys(id),
+    tx.objectStore('attempts').index('pieceId').getAllKeys(id),
+  ])
+  await Promise.all([
+    tx.objectStore('pieces').delete(id),
+    ...sections.map((key) => tx.objectStore('sections').delete(key)),
+    ...attempts.map((key) => tx.objectStore('attempts').delete(key)),
+  ])
+  await tx.done
 }

@@ -17,7 +17,7 @@ const aggregate: AttemptAggregate = {
 
 function runFullHappyPath(): PracticeState {
   let state = initialPracticeState
-  state = practiceReducer(state, { type: 'configureSection', range, tempoBpm: 80 })
+  state = practiceReducer(state, { type: 'configureSection', range, tempoBpm: 80, handFilter: 'both' })
   state = practiceReducer(state, { type: 'start' })
   state = practiceReducer(state, { type: 'countInDone' })
   state = practiceReducer(state, { type: 'loopEndReached' })
@@ -47,7 +47,7 @@ describe('practiceReducer', () => {
   })
 
   it('stopping mid count-in marks the attempt aborted', () => {
-    let state = practiceReducer(initialPracticeState, { type: 'configureSection', range, tempoBpm: 80 })
+    let state = practiceReducer(initialPracticeState, { type: 'configureSection', range, tempoBpm: 80, handFilter: 'both' })
     state = practiceReducer(state, { type: 'start' })
     state = practiceReducer(state, { type: 'stop' })
     expect(state.status).toBe('AttemptScoring')
@@ -55,7 +55,7 @@ describe('practiceReducer', () => {
   })
 
   it('stopping mid attempt marks the attempt aborted', () => {
-    let state = practiceReducer(initialPracticeState, { type: 'configureSection', range, tempoBpm: 80 })
+    let state = practiceReducer(initialPracticeState, { type: 'configureSection', range, tempoBpm: 80, handFilter: 'both' })
     state = practiceReducer(state, { type: 'start' })
     state = practiceReducer(state, { type: 'countInDone' })
     state = practiceReducer(state, { type: 'stop' })
@@ -64,7 +64,7 @@ describe('practiceReducer', () => {
   })
 
   it('reaching the end of the loop naturally marks the attempt not aborted', () => {
-    let state = practiceReducer(initialPracticeState, { type: 'configureSection', range, tempoBpm: 80 })
+    let state = practiceReducer(initialPracticeState, { type: 'configureSection', range, tempoBpm: 80, handFilter: 'both' })
     state = practiceReducer(state, { type: 'start' })
     state = practiceReducer(state, { type: 'countInDone' })
     state = practiceReducer(state, { type: 'loopEndReached' })
@@ -94,10 +94,10 @@ describe('practiceReducer', () => {
     expect(state).toEqual({ status: 'PieceLoaded' })
   })
 
-  it('re-configuring the section while already configured updates range and tempo', () => {
-    let state = practiceReducer(initialPracticeState, { type: 'configureSection', range, tempoBpm: 80 })
+  it('re-configuring the section while already configured updates range, tempo, and hand filter', () => {
+    let state = practiceReducer(initialPracticeState, { type: 'configureSection', range, tempoBpm: 80, handFilter: 'both' })
     const newRange = { startMeasure: 5, endMeasure: 8 }
-    state = practiceReducer(state, { type: 'configureSection', range: newRange, tempoBpm: 100 })
-    expect(state).toEqual({ status: 'SectionConfigured', range: newRange, tempoBpm: 100 })
+    state = practiceReducer(state, { type: 'configureSection', range: newRange, tempoBpm: 100, handFilter: 'right' })
+    expect(state).toEqual({ status: 'SectionConfigured', range: newRange, tempoBpm: 100, handFilter: 'right' })
   })
 })

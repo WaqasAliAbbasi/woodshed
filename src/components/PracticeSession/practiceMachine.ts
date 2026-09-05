@@ -1,16 +1,24 @@
+import type { HandFilter } from '../../lib/musicxml/buildExpectedTimeline'
 import type { MeasureRange } from '../../lib/musicxml/types'
 import type { AttemptAggregate } from '../../lib/scoring/types'
 
 export type PracticeState =
   | { status: 'PieceLoaded' }
-  | { status: 'SectionConfigured'; range: MeasureRange; tempoBpm: number }
-  | { status: 'CountingIn'; range: MeasureRange; tempoBpm: number }
-  | { status: 'Attempting'; range: MeasureRange; tempoBpm: number }
-  | { status: 'AttemptScoring'; range: MeasureRange; tempoBpm: number; aborted: boolean }
-  | { status: 'AttemptComplete'; range: MeasureRange; tempoBpm: number; aborted: boolean; aggregate: AttemptAggregate }
+  | { status: 'SectionConfigured'; range: MeasureRange; tempoBpm: number; handFilter: HandFilter }
+  | { status: 'CountingIn'; range: MeasureRange; tempoBpm: number; handFilter: HandFilter }
+  | { status: 'Attempting'; range: MeasureRange; tempoBpm: number; handFilter: HandFilter }
+  | { status: 'AttemptScoring'; range: MeasureRange; tempoBpm: number; handFilter: HandFilter; aborted: boolean }
+  | {
+      status: 'AttemptComplete'
+      range: MeasureRange
+      tempoBpm: number
+      handFilter: HandFilter
+      aborted: boolean
+      aggregate: AttemptAggregate
+    }
 
 export type PracticeEvent =
-  | { type: 'configureSection'; range: MeasureRange; tempoBpm: number }
+  | { type: 'configureSection'; range: MeasureRange; tempoBpm: number; handFilter: HandFilter }
   | { type: 'start' }
   | { type: 'countInDone' }
   | { type: 'loopEndReached' }
@@ -32,34 +40,52 @@ export function practiceReducer(state: PracticeState, event: PracticeEvent): Pra
   switch (state.status) {
     case 'PieceLoaded':
       if (event.type === 'configureSection') {
-        return { status: 'SectionConfigured', range: event.range, tempoBpm: event.tempoBpm }
+        return { status: 'SectionConfigured', range: event.range, tempoBpm: event.tempoBpm, handFilter: event.handFilter }
       }
       return state
 
     case 'SectionConfigured':
       if (event.type === 'configureSection') {
-        return { status: 'SectionConfigured', range: event.range, tempoBpm: event.tempoBpm }
+        return { status: 'SectionConfigured', range: event.range, tempoBpm: event.tempoBpm, handFilter: event.handFilter }
       }
       if (event.type === 'start') {
-        return { status: 'CountingIn', range: state.range, tempoBpm: state.tempoBpm }
+        return { status: 'CountingIn', range: state.range, tempoBpm: state.tempoBpm, handFilter: state.handFilter }
       }
       return state
 
     case 'CountingIn':
       if (event.type === 'countInDone') {
-        return { status: 'Attempting', range: state.range, tempoBpm: state.tempoBpm }
+        return { status: 'Attempting', range: state.range, tempoBpm: state.tempoBpm, handFilter: state.handFilter }
       }
       if (event.type === 'stop') {
-        return { status: 'AttemptScoring', range: state.range, tempoBpm: state.tempoBpm, aborted: true }
+        return {
+          status: 'AttemptScoring',
+          range: state.range,
+          tempoBpm: state.tempoBpm,
+          handFilter: state.handFilter,
+          aborted: true,
+        }
       }
       return state
 
     case 'Attempting':
       if (event.type === 'loopEndReached') {
-        return { status: 'AttemptScoring', range: state.range, tempoBpm: state.tempoBpm, aborted: false }
+        return {
+          status: 'AttemptScoring',
+          range: state.range,
+          tempoBpm: state.tempoBpm,
+          handFilter: state.handFilter,
+          aborted: false,
+        }
       }
       if (event.type === 'stop') {
-        return { status: 'AttemptScoring', range: state.range, tempoBpm: state.tempoBpm, aborted: true }
+        return {
+          status: 'AttemptScoring',
+          range: state.range,
+          tempoBpm: state.tempoBpm,
+          handFilter: state.handFilter,
+          aborted: true,
+        }
       }
       return state
 
@@ -69,6 +95,7 @@ export function practiceReducer(state: PracticeState, event: PracticeEvent): Pra
           status: 'AttemptComplete',
           range: state.range,
           tempoBpm: state.tempoBpm,
+          handFilter: state.handFilter,
           aborted: state.aborted,
           aggregate: event.aggregate,
         }
@@ -77,10 +104,10 @@ export function practiceReducer(state: PracticeState, event: PracticeEvent): Pra
 
     case 'AttemptComplete':
       if (event.type === 'repeat') {
-        return { status: 'CountingIn', range: state.range, tempoBpm: state.tempoBpm }
+        return { status: 'CountingIn', range: state.range, tempoBpm: state.tempoBpm, handFilter: state.handFilter }
       }
       if (event.type === 'adjust') {
-        return { status: 'SectionConfigured', range: state.range, tempoBpm: state.tempoBpm }
+        return { status: 'SectionConfigured', range: state.range, tempoBpm: state.tempoBpm, handFilter: state.handFilter }
       }
       if (event.type === 'done') {
         return { status: 'PieceLoaded' }

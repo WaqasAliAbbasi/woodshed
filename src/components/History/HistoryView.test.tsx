@@ -1,8 +1,8 @@
 import 'fake-indexeddb/auto'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { beforeEach, describe, expect, it } from 'vitest'
-import { recordAttempt } from '../../lib/db/attemptsRepo'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { listAttemptsForPiece, recordAttempt } from '../../lib/db/attemptsRepo'
 import { resetDbConnectionForTests } from '../../lib/db/db'
 import { createPiece } from '../../lib/db/piecesRepo'
 import { createSection } from '../../lib/db/sectionsRepo'
@@ -79,5 +79,48 @@ describe('HistoryView', () => {
     await act(async () => {})
     expect(container.textContent).toContain('80 BPM')
     expect(container.textContent).not.toContain('40 BPM')
+  })
+
+  it('deletes an attempt after confirming, leaving the other attempt in place', async () => {
+    const piece = await createPiece({ title: 'P', filename: 'p.musicxml', musicXml: '', measureCount: 10 })
+    const section = await createSection({ pieceId: piece.id, label: 'Opening', startMeasure: 1, endMeasure: 4, defaultTempoBpm: 80 })
+    await recordAttempt({ sectionId: section.id, pieceId: piece.id, tempoBpm: 80, aborted: false, aggregate, noteResults: [] })
+    await recordAttempt({ sectionId: section.id, pieceId: piece.id, tempoBpm: 100, aborted: false, aggregate, noteResults: [] })
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { container } = render(<HistoryView pieceId={piece.id} refreshKey={0} />)
+    await act(async () => {})
+
+    expect(container.textContent).toContain('80 BPM')
+    expect(container.textContent).toContain('100 BPM')
+
+    const deleteButtons = container.querySelectorAll<HTMLButtonElement>('.attempt-delete')
+    expect(deleteButtons).toHaveLength(2)
+    await act(async () => {
+      deleteButtons[0].click()
+    })
+
+    expect(confirmSpy).toHaveBeenCalled()
+    expect(await listAttemptsForPiece(piece.id)).toHaveLength(1)
+    confirmSpy.mockRestore()
+  })
+
+  it('does not delete when the confirmation is declined', async () => {
+    const piece = await createPiece({ title: 'P', filename: 'p.musicxml', musicXml: '', measureCount: 10 })
+    const section = await createSection({ pieceId: piece.id, label: 'Opening', startMeasure: 1, endMeasure: 4, defaultTempoBpm: 80 })
+    await recordAttempt({ sectionId: section.id, pieceId: piece.id, tempoBpm: 80, aborted: false, aggregate, noteResults: [] })
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const { container } = render(<HistoryView pieceId={piece.id} refreshKey={0} />)
+    await act(async () => {})
+
+    const deleteButton = container.querySelector<HTMLButtonElement>('.attempt-delete')!
+    await act(async () => {
+      deleteButton.click()
+    })
+
+    expect(confirmSpy).toHaveBeenCalled()
+    expect(await listAttemptsForPiece(piece.id)).toHaveLength(1)
+    confirmSpy.mockRestore()
   })
 })

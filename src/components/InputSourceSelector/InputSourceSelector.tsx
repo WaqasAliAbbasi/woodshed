@@ -24,7 +24,7 @@ export function InputSourceSelector({ midi }: { midi: UseMidiInputResult }) {
   const midiSelected = !midi.keyboardEnabled
 
   return (
-    <div className="midi-selector">
+    <div className="midi-selector panel">
       <fieldset className="input-source-list">
         <legend className="input-source-label">Input</legend>
 

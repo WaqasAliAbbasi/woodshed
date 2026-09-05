@@ -1,12 +1,12 @@
 import { PointF2D, type GraphicalNote, type OpenSheetMusicDisplay } from 'opensheetmusicdisplay'
 import { useEffect, useRef } from 'react'
-import { buildExpectedTimeline } from '../../lib/musicxml/buildExpectedTimeline'
+import { buildExpectedTimeline, type HandFilter } from '../../lib/musicxml/buildExpectedTimeline'
 import { findMeasureNumberAt } from '../../lib/musicxml/measureHitTest'
 import type { MeasureRange } from '../../lib/musicxml/types'
+import { getDefaultMusicColor } from '../../lib/theme'
 import { useOSMD } from './useOSMD'
 
 const HIGHLIGHT_COLOR = '#3b82f6'
-const DEFAULT_NOTE_COLOR = 'black'
 /** Tempo doesn't matter here — only graphicalNotes (not onsetSec) is used for highlighting. */
 const HIGHLIGHT_TEMPO_BPM = 120
 
@@ -16,12 +16,14 @@ export function ScoreViewer({
   range,
   clickable,
   onMeasureClick,
+  handFilter,
 }: {
   musicXml: string
   onReady: (osmd: OpenSheetMusicDisplay | undefined) => void
   range: MeasureRange | undefined
   clickable: boolean
   onMeasureClick: (measureNumber: number) => void
+  handFilter: HandFilter
 }) {
   const { containerRef, osmd, error } = useOSMD(musicXml)
   const highlightedNotesRef = useRef<GraphicalNote[]>([])
@@ -64,22 +66,22 @@ export function ScoreViewer({
     if (!osmd) return
 
     for (const note of highlightedNotesRef.current) {
-      note.setColor(DEFAULT_NOTE_COLOR, { applyToNoteheads: true })
+      note.setColor(getDefaultMusicColor(), { applyToNoteheads: true })
     }
     highlightedNotesRef.current = []
 
     if (clickable && range) {
-      const notes = buildExpectedTimeline(osmd, range, HIGHLIGHT_TEMPO_BPM).flatMap((e) => e.graphicalNotes)
+      const notes = buildExpectedTimeline(osmd, range, HIGHLIGHT_TEMPO_BPM, handFilter).flatMap((e) => e.graphicalNotes)
       for (const note of notes) {
         note.setColor(HIGHLIGHT_COLOR, { applyToNoteheads: true })
       }
       highlightedNotesRef.current = notes
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on start/end primitives, not `range` object identity
-  }, [osmd, range?.startMeasure, range?.endMeasure, clickable])
+  }, [osmd, range?.startMeasure, range?.endMeasure, clickable, handFilter])
 
   return (
-    <div className={`score-viewer${clickable ? ' score-viewer-clickable' : ''}`}>
+    <div className={`score-viewer panel${clickable ? ' score-viewer-clickable' : ''}`}>
       {error && <div className="banner banner-error">Failed to load score: {error}</div>}
       <div ref={containerRef} />
     </div>

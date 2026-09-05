@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { recordAttempt, listAttemptsForPiece, listAttemptsForSection } from './attemptsRepo'
+import { deleteAttempt, recordAttempt, listAttemptsForPiece, listAttemptsForSection } from './attemptsRepo'
 import { getDb, resetDbConnectionForTests } from './db'
 import { createPiece, deletePiece, getPiece, listPieces, renamePiece } from './piecesRepo'
 import { createSection, listSectionsForPiece } from './sectionsRepo'
@@ -64,6 +64,48 @@ describe('piecesRepo', () => {
     expect(await getPiece(piece.id)).toBeUndefined()
   })
 
+  it('cascades deletion to the piece’s sections and attempts, leaving other pieces untouched', async () => {
+    const piece = await createPiece({ title: 'Temp', filename: 't.musicxml', musicXml: '', measureCount: 1 })
+    const other = await createPiece({ title: 'Other', filename: 'o.musicxml', musicXml: '', measureCount: 1 })
+    const section = await createSection({
+      pieceId: piece.id,
+      label: 'Opening',
+      startMeasure: 1,
+      endMeasure: 4,
+      defaultTempoBpm: 80,
+    })
+    const otherSection = await createSection({
+      pieceId: other.id,
+      label: 'Opening',
+      startMeasure: 1,
+      endMeasure: 4,
+      defaultTempoBpm: 80,
+    })
+    await recordAttempt({
+      sectionId: section.id,
+      pieceId: piece.id,
+      tempoBpm: 80,
+      aborted: false,
+      aggregate: sampleAggregate,
+      noteResults: [],
+    })
+    await recordAttempt({
+      sectionId: otherSection.id,
+      pieceId: other.id,
+      tempoBpm: 80,
+      aborted: false,
+      aggregate: sampleAggregate,
+      noteResults: [],
+    })
+
+    await deletePiece(piece.id)
+
+    expect(await listSectionsForPiece(piece.id)).toHaveLength(0)
+    expect(await listAttemptsForPiece(piece.id)).toHaveLength(0)
+    expect(await listSectionsForPiece(other.id)).toHaveLength(1)
+    expect(await listAttemptsForPiece(other.id)).toHaveLength(1)
+  })
+
   it('renames a piece and bumps updatedAt', async () => {
     const piece = await createPiece({ title: 'Old', filename: 't.musicxml', musicXml: '', measureCount: 1 })
     const renamed = await renamePiece(piece.id, 'New Title')
@@ -111,5 +153,37 @@ describe('attemptsRepo', () => {
     expect(bySection).toHaveLength(1)
     expect(byPiece).toHaveLength(1)
     expect(bySection[0].aggregate.pitchAccuracy).toBe(1)
+  })
+
+  it('deletes an attempt, leaving other attempts for the same section untouched', async () => {
+    const piece = await createPiece({ title: 'P', filename: 'p.musicxml', musicXml: '', measureCount: 10 })
+    const section = await createSection({
+      pieceId: piece.id,
+      label: 'Opening',
+      startMeasure: 1,
+      endMeasure: 4,
+      defaultTempoBpm: 80,
+    })
+    const toDelete = await recordAttempt({
+      sectionId: section.id,
+      pieceId: piece.id,
+      tempoBpm: 80,
+      aborted: false,
+      aggregate: sampleAggregate,
+      noteResults: [],
+    })
+    const toKeep = await recordAttempt({
+      sectionId: section.id,
+      pieceId: piece.id,
+      tempoBpm: 100,
+      aborted: false,
+      aggregate: sampleAggregate,
+      noteResults: [],
+    })
+
+    await deleteAttempt(toDelete.id)
+
+    const remaining = await listAttemptsForPiece(piece.id)
+    expect(remaining.map((a) => a.id)).toEqual([toKeep.id])
   })
 })

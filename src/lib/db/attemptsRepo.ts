@@ -17,3 +17,8 @@ export async function listAttemptsForPiece(pieceId: string): Promise<Attempt[]> 
   const db = await getDb()
   return db.getAllFromIndex('attempts', 'pieceId', pieceId)
 }
+
+export async function deleteAttempt(id: string): Promise<void> {
+  const db = await getDb()
+  await db.delete('attempts', id)
+}

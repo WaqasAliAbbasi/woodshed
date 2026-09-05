@@ -1,4 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
+import type { HandFilter } from '../musicxml/buildExpectedTimeline'
 import type { AttemptAggregate, StoredNoteResult } from '../scoring/types'
 
 export interface Piece {
@@ -20,6 +21,8 @@ export interface Section {
   endMeasure: number
   defaultTempoBpm: number
   createdAt: number
+  /** Absent on sections created before hands-separate practice existed — treat as 'both'. */
+  handFilter?: HandFilter
 }
 
 export interface Attempt {

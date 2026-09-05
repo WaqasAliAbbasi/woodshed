@@ -31,7 +31,10 @@ export function findMeasureNumberAt(osmd: OpenSheetMusicDisplay, point: PointF2D
           const measureNumber = measure.MeasureNumber
           // Systems can carry ghost measures after the final barline (key /
           // rhythm change targets) whose MeasureNumber is never set (< 0).
-          if (!Number.isInteger(measureNumber) || measureNumber < 1) continue
+          // 0 is a real, clickable measure — OSMD numbers a pickup/anacrusis
+          // measure at the start of a piece as 0, not 1 (see
+          // buildExpectedTimeline's getSourceMeasure for the full story).
+          if (!Number.isInteger(measureNumber) || measureNumber < 0) continue
 
           const bb = measure.PositionAndShape
           const left = bb.AbsolutePosition.x + bb.BorderLeft

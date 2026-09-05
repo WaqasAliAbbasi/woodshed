@@ -90,7 +90,7 @@ function App() {
         onAttemptRecorded={() => setHistoryRefreshKey((k) => k + 1)}
       />
 
-      <section>
+      <section className="panel">
         <h2>History</h2>
         <HistoryView pieceId={piece.id} refreshKey={historyRefreshKey} />
       </section>

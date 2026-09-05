@@ -1,6 +1,7 @@
 import type { OpenSheetMusicDisplay } from 'opensheetmusicdisplay'
 import { useEffect, useRef, useState } from 'react'
 import { loadScore } from '../../lib/musicxml/loadScore'
+import { getDefaultMusicColor, watchColorScheme } from '../../lib/theme'
 
 export interface UseOSMDResult {
   containerRef: React.RefObject<HTMLDivElement | null>
@@ -36,6 +37,18 @@ export function useOSMD(musicXml: string): UseOSMDResult {
       container.innerHTML = ''
     }
   }, [musicXml])
+
+  // OSMD paints its default note color once at load time (see loadScore),
+  // so it doesn't react on its own if the OS/browser theme flips while a
+  // piece is already open — re-apply and redraw so the score doesn't get
+  // stuck in the wrong theme's color.
+  useEffect(() => {
+    if (!osmd) return
+    return watchColorScheme(() => {
+      osmd.setOptions({ defaultColorMusic: getDefaultMusicColor() })
+      osmd.render()
+    })
+  }, [osmd])
 
   return { containerRef, osmd, error }
 }

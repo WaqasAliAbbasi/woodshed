@@ -6,6 +6,18 @@
   font-family: system-ui, sans-serif;
 }
 
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin: 1.25rem 0;
+}
+
+.panel > h2:first-child {
+  margin-top: 0;
+}
+
 .practice-action-bar {
   position: fixed;
   left: 0;
@@ -15,8 +27,9 @@
   display: flex;
   justify-content: center;
   padding: 0.75rem 1.5rem;
-  background: #fff;
-  border-top: 1px solid #ddd;
+  background: var(--surface);
+  color: var(--text);
+  border-top: 1px solid var(--border);
 }
 
 .practice-action-bar .practice-controls {
@@ -30,7 +43,7 @@
 }
 
 .practice-section-label {
-  color: #666;
+  color: var(--muted);
   font-size: 0.9rem;
   white-space: nowrap;
 }
@@ -69,10 +82,15 @@
 .app-rename {
   border: none;
   background: none;
-  color: #3b82f6;
+  color: var(--accent);
   cursor: pointer;
-  padding: 0 0.25rem;
+  padding: 0.15rem 0.35rem;
   font-size: 1rem;
+  border-radius: var(--radius-sm);
+}
+
+.app-rename:hover {
+  background: var(--accent-soft-bg);
 }
 
 .app-title-edit {
@@ -85,28 +103,23 @@
   font-size: 1.5rem;
   font-weight: 700;
   padding: 0.15rem 0.35rem;
-  border: 1px solid #ccc;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 
 .banner {
   padding: 0.5rem 0.75rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   margin: 0.5rem 0;
 }
 
 .banner-error {
-  background: #fde2e2;
-  color: #7a1f1f;
+  background: var(--danger-bg);
+  color: var(--danger-text);
 }
 
 .banner-warning {
-  background: #fff3cd;
-  color: #7a5c00;
-}
-
-.midi-selector {
-  margin: 1rem 0;
+  background: var(--warning-bg);
+  color: var(--warning-text);
 }
 
 .input-source-list {
@@ -140,6 +153,7 @@
 .keyboard-legend {
   display: flex;
   gap: 0.2rem;
+  flex-wrap: wrap;
 }
 
 .keyboard-key {
@@ -148,23 +162,22 @@
   align-items: center;
   min-width: 1.5rem;
   padding: 0.2rem 0.25rem;
-  border: 1px solid #ccc;
-  border-radius: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   font-size: 0.75rem;
   line-height: 1.1;
 }
 
 .keyboard-key-note {
   font-size: 0.6rem;
-  color: #666;
+  color: var(--muted);
 }
 
 .score-viewer {
   overflow-x: auto;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  margin: 1rem 0;
   min-height: 100px;
+  scrollbar-color: var(--border) transparent;
+  scrollbar-width: thin;
 }
 
 .score-viewer-clickable {
@@ -181,11 +194,11 @@
   width: 0.75rem;
   height: 0.75rem;
   border-radius: 50%;
-  background: #ddd;
+  background: var(--border);
 }
 
 .beat-dot-active {
-  background: #3b82f6;
+  background: var(--accent);
 }
 
 .practice-controls {
@@ -196,21 +209,40 @@
   margin: 1rem 0;
 }
 
-.section-picker,
 .tempo-control {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.tempo-control label {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.section-picker input,
 .tempo-control input {
   width: 4rem;
 }
 
-.section-picker-hint,
+.tempo-presets {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.tempo-preset-btn {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.85rem;
+}
+
+.tempo-preset-btn-active {
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-text);
+  border-color: var(--accent);
+}
+
 .practice-hint {
-  color: #666;
+  color: var(--muted);
   font-size: 0.9rem;
 }
 
@@ -218,20 +250,95 @@
   font-weight: 600;
 }
 
+.hand-filter-control {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.hand-filter-control legend {
+  padding: 0;
+  margin-right: 0.15rem;
+  font-weight: 600;
+}
+
+.hand-filter-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.hand-filter-control:disabled .hand-filter-option,
+.hand-filter-control[disabled] .hand-filter-option {
+  cursor: default;
+}
+
 .history-table {
   width: 100%;
   border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
 }
 
-.history-table th,
+.history-table th {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 .history-table td {
   text-align: left;
   padding: 0.4rem 0.6rem;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.history-table tbody tr:hover {
+  background: var(--surface-hover);
+}
+
+.attempt-delete {
+  border: none;
+  background: none;
+  color: var(--danger-text);
+  cursor: pointer;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+}
+
+.attempt-delete:not(:disabled):hover {
+  background: var(--danger-bg);
 }
 
 .history-empty {
-  color: #666;
+  color: var(--muted);
+}
+
+.coach-suggestion {
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-text);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.coach-headline {
+  font-weight: 600;
+  margin: 0;
+}
+
+.coach-detail {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
 }
 
 .piece-library ul {
@@ -241,4 +348,56 @@
 
 .piece-library li {
   margin: 0.25rem 0;
+}
+
+.piece-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.piece-select {
+  flex: 1;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.6rem;
+}
+
+.piece-select:not(:disabled):hover {
+  background: var(--surface-hover);
+}
+
+.piece-delete {
+  border: none;
+  background: none;
+  color: var(--danger-text);
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+}
+
+.piece-delete:not(:disabled):hover {
+  background: var(--danger-bg);
+}
+
+.piece-composer {
+  color: var(--muted);
+}
+
+.piece-upload::file-selector-button {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.8rem;
+  margin-right: 0.6rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.piece-upload::file-selector-button:hover {
+  background: var(--surface-hover);
 }

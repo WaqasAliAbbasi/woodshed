@@ -1,0 +1,143 @@
+.app {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  font-family: system-ui, sans-serif;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.banner {
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  margin: 0.5rem 0;
+}
+
+.banner-error {
+  background: #fde2e2;
+  color: #7a1f1f;
+}
+
+.banner-warning {
+  background: #fff3cd;
+  color: #7a5c00;
+}
+
+.midi-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.score-viewer {
+  overflow-x: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin: 1rem 0;
+  min-height: 100px;
+}
+
+.score-viewer-clickable {
+  cursor: pointer;
+}
+
+.beat-indicator {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0.5rem 0;
+}
+
+.beat-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: #ddd;
+}
+
+.beat-dot-active {
+  background: #3b82f6;
+}
+
+.practice-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+}
+
+.section-picker,
+.tempo-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.section-picker input,
+.tempo-control input {
+  width: 4rem;
+}
+
+.section-picker-hint,
+.practice-hint {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.practice-status {
+  font-weight: 600;
+}
+
+.attempt-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.stat {
+  text-align: center;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.5rem;
+}
+
+.stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.history-table th,
+.history-table td {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid #eee;
+}
+
+.history-empty {
+  color: #666;
+}
+
+.piece-library ul {
+  list-style: none;
+  padding: 0;
+}
+
+.piece-library li {
+  margin: 0.25rem 0;
+}

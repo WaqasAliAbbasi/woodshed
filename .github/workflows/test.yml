@@ -1,0 +1,90 @@
+name: test
+
+# PR gate for woodshed, and the gate deploy.yml reuses so main cannot ship
+# something that does not pass. Mirrors studentbase's test.yml, minus the
+# backing services a static site has no use for.
+on:
+  pull_request:
+    branches: [main]
+  workflow_call:
+
+concurrency:
+  group: test-${{ github.ref }}
+  # Cancelling a PR run is free; cancelling one gating a deploy is not.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: lint, types, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        # --ignore-scripts for the same reason the Dockerfile uses it: canvas's
+        # native install is nothing this job needs.
+        run: npm ci --ignore-scripts
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      # tsc -b is part of `npm run build`, so this is also the typecheck step.
+      - name: Build
+        run: npm run build
+
+  image:
+    name: image builds and serves
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # Built here and not only in hub's deploy so a Dockerfile regression is
+      # caught on the PR, not on a push to main.
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: woodshed:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # `load: true` exports through the docker exporter, which cannot take
+          # the manifest list that an attestation turns the result into.
+          provenance: false
+
+      - name: Smoke test
+        run: |
+          docker run -d --name woodshed-smoke -p 8080:80 woodshed:ci
+          for _ in $(seq 1 20); do
+            if curl -fs http://localhost:8080/ >/dev/null 2>&1; then
+              echo "index.html served."
+              curl -fs http://localhost:8080/ | grep -q '<div id="root"></div>'
+              docker rm -f woodshed-smoke
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Container never served index.html:"
+          docker logs woodshed-smoke
+          docker rm -f woodshed-smoke
+          exit 1

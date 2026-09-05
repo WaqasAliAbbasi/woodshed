@@ -1,0 +1,41 @@
+name: deploy
+
+# Pushing to main deploys. Mirrors studentbase's deploy.yml: run the same
+# checks a PR would have to pass, then delegate to hub's reusable workflow,
+# which builds the image, pushes it to GHCR, and brings compose.yml up on the
+# box. See hub's docs/new-project.md.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# hub's reusable workflow has no concurrency control of its own, so two merges
+# in quick succession would race each other over the same `docker compose up`
+# on the box. Queue instead of cancelling.
+concurrency:
+  group: deploy-woodshed
+  cancel-in-progress: false
+
+jobs:
+  # A push to main is a deploy, so the checks have to live on this side of it.
+  test:
+    uses: ./.github/workflows/test.yml
+    permissions:
+      contents: read
+
+  deploy:
+    needs: test
+    # The hub box credentials live in the Prod environment secrets.
+    environment: Prod
+    uses: WaqasAliAbbasi/hub/.github/workflows/deploy.yml@main
+    with:
+      project: woodshed
+      host: woodshed.waqasali.dev
+      health-path: /
+    secrets:
+      SSH_HOST: ${{ secrets.HUB_SSH_HOST }}
+      SSH_KEY: ${{ secrets.HUB_SSH_KEY }}
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+    permissions:
+      contents: read
+      packages: write

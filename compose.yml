@@ -1,0 +1,24 @@
+name: woodshed
+
+# A static site — no state, no database, no secrets. The image is built in CI
+# and pushed to GHCR; this file only wires it into hub's traefik edge network.
+# See hub's docs/new-project.md.
+services:
+  web:
+    # GHCR image names must be lowercase.
+    image: ghcr.io/waqasaliabbasi/woodshed:${IMAGE_TAG}
+    restart: always
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.woodshed.rule=Host(`woodshed.waqasali.dev`)
+      - traefik.http.routers.woodshed.tls.certresolver=le
+      - traefik.http.services.woodshed.loadbalancer.server.port=80
+    networks:
+      - edge
+    mem_limit: 128m
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  edge:
+    external: true

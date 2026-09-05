@@ -1,0 +1,19 @@
+npm-debug.log
+
+# VCS and CI
+.git*
+.jj
+.github
+
+# Dependencies
+node_modules
+
+# Build output
+dist
+
+# Editors / local tooling
+**/.idea
+**/.vscode
+.claude
+.DS_Store
+*.local

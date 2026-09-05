@@ -32,9 +32,13 @@ jobs:
           cache: npm
 
       - name: Install
-        # --ignore-scripts for the same reason the Dockerfile uses it: canvas's
-        # native install is nothing this job needs.
-        run: npm ci --ignore-scripts
+        # --ignore-scripts for the same reason the Dockerfile uses it, but the
+        # musicxml tests render OSMD and need canvas's native prebuilt binary —
+        # without it jsdom's getContext returns null and OSMD crashes.
+        # Rebuild just that one package instead of enabling every install script.
+        run: |
+          npm ci --ignore-scripts
+          npm rebuild canvas
 
       - name: Lint
         run: npm run lint

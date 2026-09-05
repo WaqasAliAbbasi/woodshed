@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { recordAttempt, listAttemptsForPiece, listAttemptsForSection } from './attemptsRepo'
 import { getDb, resetDbConnectionForTests } from './db'
-import { createPiece, deletePiece, getPiece, listPieces } from './piecesRepo'
+import { createPiece, deletePiece, getPiece, listPieces, renamePiece } from './piecesRepo'
 import { createSection, listSectionsForPiece } from './sectionsRepo'
 
 const sampleAggregate = {
@@ -62,6 +62,14 @@ describe('piecesRepo', () => {
     const piece = await createPiece({ title: 'Temp', filename: 't.musicxml', musicXml: '', measureCount: 1 })
     await deletePiece(piece.id)
     expect(await getPiece(piece.id)).toBeUndefined()
+  })
+
+  it('renames a piece and bumps updatedAt', async () => {
+    const piece = await createPiece({ title: 'Old', filename: 't.musicxml', musicXml: '', measureCount: 1 })
+    const renamed = await renamePiece(piece.id, 'New Title')
+    expect(renamed.title).toBe('New Title')
+    expect(renamed.updatedAt).toBeGreaterThanOrEqual(piece.updatedAt)
+    expect((await getPiece(piece.id))?.title).toBe('New Title')
   })
 })
 

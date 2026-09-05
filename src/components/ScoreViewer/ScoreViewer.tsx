@@ -1,6 +1,7 @@
-import { GraphicalMeasure, PointF2D, type GraphicalNote, type OpenSheetMusicDisplay } from 'opensheetmusicdisplay'
+import { PointF2D, type GraphicalNote, type OpenSheetMusicDisplay } from 'opensheetmusicdisplay'
 import { useEffect, useRef } from 'react'
 import { buildExpectedTimeline } from '../../lib/musicxml/buildExpectedTimeline'
+import { findMeasureNumberAt } from '../../lib/musicxml/measureHitTest'
 import type { MeasureRange } from '../../lib/musicxml/types'
 import { useOSMD } from './useOSMD'
 
@@ -44,13 +45,9 @@ export function ScoreViewer({
       const domPoint = new PointF2D(event.clientX, event.clientY)
       const svgPoint = osmd.GraphicSheet.domToSvg(domPoint)
       const osmdPoint = osmd.GraphicSheet.svgToOsmd(svgPoint)
-      // GetNearestObject compares against the class's runtime `.name` — in a
-      // minified production bundle that's a mangled string, not literally
-      // "GraphicalMeasure", so it must be read off the real class reference
-      // rather than hardcoded (verified live: hardcoding silently matches nothing).
-      const measure = osmd.GraphicSheet.GetNearestObject<GraphicalMeasure>(osmdPoint, GraphicalMeasure.name)
-      if (measure) {
-        latestRef.current.onMeasureClick(measure.MeasureNumber)
+      const measureNumber = findMeasureNumberAt(osmd, osmdPoint)
+      if (measureNumber !== undefined) {
+        latestRef.current.onMeasureClick(measureNumber)
       }
     }
 

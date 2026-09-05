@@ -15,8 +15,6 @@ export function useOSMD(musicXml: string): UseOSMDResult {
 
   useEffect(() => {
     const controller = new AbortController()
-    setOsmd(undefined)
-    setError(undefined)
 
     const container = containerRef.current
     if (!container) return

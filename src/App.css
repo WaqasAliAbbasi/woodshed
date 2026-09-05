@@ -2,13 +2,91 @@
   max-width: 900px;
   margin: 0 auto;
   padding: 1.5rem;
+  padding-bottom: 6rem;
   font-family: system-ui, sans-serif;
+}
+
+.practice-action-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  background: #fff;
+  border-top: 1px solid #ddd;
+}
+
+.practice-action-bar .practice-controls {
+  max-width: 900px;
+  width: 100%;
+  margin: 0;
+}
+
+.practice-action-bar .beat-indicator {
+  margin: 0;
+}
+
+.practice-section-label {
+  color: #666;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.practice-result-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.practice-result-aborted {
+  margin: 0;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.85rem;
+}
+
+.practice-result-text {
+  font-weight: 600;
 }
 
 .app-header {
   display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+.app-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.app-rename {
+  border: none;
+  background: none;
+  color: #3b82f6;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  font-size: 1rem;
+}
+
+.app-title-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.app-title-edit input {
+  font-size: 1.5rem;
+  font-weight: 700;
+  padding: 0.15rem 0.35rem;
+  border: 1px solid #ccc;
+  border-radius: 3px;
 }
 
 .banner {
@@ -28,10 +106,57 @@
 }
 
 .midi-selector {
+  margin: 1rem 0;
+}
+
+.input-source-list {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin: 1rem 0;
+  gap: 1rem;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.input-source-label {
+  padding: 0;
+  margin-right: 0.25rem;
+  font-weight: 600;
+}
+
+.input-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+
+.midi-selector .keyboard-legend,
+.midi-selector > button,
+.midi-selector > select {
+  margin-top: 0.5rem;
+}
+
+.keyboard-legend {
+  display: flex;
+  gap: 0.2rem;
+}
+
+.keyboard-key {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 1.5rem;
+  padding: 0.2rem 0.25rem;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  line-height: 1.1;
+}
+
+.keyboard-key-note {
+  font-size: 0.6rem;
+  color: #666;
 }
 
 .score-viewer {
@@ -91,30 +216,6 @@
 
 .practice-status {
   font-weight: 600;
-}
-
-.attempt-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-  gap: 0.75rem;
-  margin: 1rem 0;
-}
-
-.stat {
-  text-align: center;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  padding: 0.5rem;
-}
-
-.stat-value {
-  font-size: 1.4rem;
-  font-weight: 700;
-}
-
-.stat-label {
-  font-size: 0.8rem;
-  color: #666;
 }
 
 .history-table {

@@ -1,3 +1,5 @@
+import { NumberField } from '../NumberField/NumberField'
+
 export function TempoControl({
   tempoBpm,
   onChange,
@@ -10,14 +12,7 @@ export function TempoControl({
   return (
     <label className="tempo-control">
       Tempo (BPM)
-      <input
-        type="number"
-        min={20}
-        max={240}
-        value={tempoBpm}
-        disabled={disabled}
-        onChange={(e) => onChange(Math.min(Math.max(Number(e.target.value) || 20, 20), 240))}
-      />
+      <NumberField value={tempoBpm} min={20} max={240} disabled={disabled} onCommit={onChange} />
     </label>
   )
 }

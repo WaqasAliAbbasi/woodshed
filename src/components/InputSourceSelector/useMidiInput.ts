@@ -9,18 +9,25 @@ import {
   type MidiDeviceInfo,
 } from '../../lib/midi/midiAccess'
 import { parseMidiMessage, type MidiNoteEvent } from '../../lib/midi/midiEvents'
+import { KEYBOARD_VELOCITY, KEY_TO_NOTE, keyToNote } from '../../lib/midi/virtualKeyboard'
 
 const LAST_DEVICE_KEY = 'woodshed:lastMidiDeviceId'
 
 export interface UseMidiInputResult {
   supported: boolean
+  /** True when any input source (real MIDI device or the computer keyboard) is available. */
   connected: boolean
+  /** True only when a real MIDI device is connected (keyboard input excluded). */
+  midiConnected: boolean
   devices: MidiDeviceInfo[]
   selectedDeviceId: string | undefined
   deviceLost: boolean
   connect: () => Promise<void>
   connectError: string | undefined
   selectDevice: (id: string) => void
+  /** When true, the computer keyboard plays the piano instead of a MIDI device. */
+  keyboardEnabled: boolean
+  setKeyboardEnabled: (on: boolean) => void
   /** Swaps which callback receives raw note events. Callers should set this to a no-op on unmount/deactivation. */
   setNoteHandler: (handler: (event: MidiNoteEvent) => void) => void
 }
@@ -39,6 +46,9 @@ export function useMidiInput(): UseMidiInputResult {
   )
   const [deviceLost, setDeviceLost] = useState(false)
   const [connectError, setConnectError] = useState<string | undefined>(undefined)
+  // Default to the keyboard when Web MIDI isn't supported, so there's always
+  // a usable, selected input source rather than nothing checked and Start disabled.
+  const [keyboardEnabled, setKeyboardEnabled] = useState(() => !isWebMidiSupported())
 
   const accessRef = useRef<MIDIAccess | undefined>(undefined)
   const noteHandlerRef = useRef<(event: MidiNoteEvent) => void>(() => {})
@@ -67,8 +77,38 @@ export function useMidiInput(): UseMidiInputResult {
     noteHandlerRef.current = handler
   }, [])
 
-  // Attach the raw MIDI listener to whichever device is selected.
+  // Attach the raw note source: the computer keyboard when keyboard mode is
+  // on, otherwise whichever MIDI device is selected.
   useEffect(() => {
+    if (keyboardEnabled) {
+      const noteOn = (e: KeyboardEvent) => {
+        if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return
+        const note = keyToNote(e.key)
+        if (note === undefined) return
+        noteHandlerRef.current({ type: 'noteOn', note, velocity: KEYBOARD_VELOCITY, timeStampMs: performance.now() })
+      }
+      const noteOff = (e: KeyboardEvent) => {
+        const note = keyToNote(e.key)
+        if (note === undefined) return
+        noteHandlerRef.current({ type: 'noteOff', note, velocity: 0, timeStampMs: performance.now() })
+      }
+      // Drop any still-held notes if the window loses focus mid-attempt.
+      const releaseAll = () => {
+        for (const note of Object.values(KEY_TO_NOTE)) {
+          noteHandlerRef.current({ type: 'noteOff', note, velocity: 0, timeStampMs: performance.now() })
+        }
+      }
+      window.addEventListener('keydown', noteOn)
+      window.addEventListener('keyup', noteOff)
+      window.addEventListener('blur', releaseAll)
+      return () => {
+        releaseAll()
+        window.removeEventListener('keydown', noteOn)
+        window.removeEventListener('keyup', noteOff)
+        window.removeEventListener('blur', releaseAll)
+      }
+    }
+
     const access = accessRef.current
     if (!access || !selectedDeviceId) return
     const input = findInputById(access, selectedDeviceId)
@@ -78,7 +118,7 @@ export function useMidiInput(): UseMidiInputResult {
       const parsed = parseMidiMessage(event.data, event.timeStamp)
       if (parsed) noteHandlerRef.current(parsed)
     })
-  }, [selectedDeviceId, connected])
+  }, [keyboardEnabled, selectedDeviceId, connected])
 
   // Watch for the selected device disconnecting, and keep the device list fresh.
   useEffect(() => {
@@ -94,13 +134,16 @@ export function useMidiInput(): UseMidiInputResult {
 
   return {
     supported: isWebMidiSupported(),
-    connected,
+    connected: connected || keyboardEnabled,
+    midiConnected: connected,
     devices,
     selectedDeviceId,
     deviceLost,
     connect,
     connectError,
     selectDevice,
+    keyboardEnabled,
+    setKeyboardEnabled,
     setNoteHandler,
   }
 }

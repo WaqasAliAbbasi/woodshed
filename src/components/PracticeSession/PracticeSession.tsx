@@ -9,9 +9,7 @@ import { advanceCursorToMeasure, buildExpectedTimeline, getBeatsPerMeasure } fro
 import type { ExpectedChordEvent, MeasureRange } from '../../lib/musicxml/types'
 import { ACCEPT_MS, NoteMatcher } from '../../lib/scoring/matcher'
 import type { MidiNoteEvent } from '../../lib/midi/midiEvents'
-import { AttemptResult } from '../AttemptResult/AttemptResult'
-import type { UseMidiInputResult } from '../MidiDeviceSelector/useMidiInput'
-import { SectionPicker } from '../SectionPicker/SectionPicker'
+import type { UseMidiInputResult } from '../InputSourceSelector/useMidiInput'
 import { TempoControl } from '../TempoControl/TempoControl'
 import { initialPracticeState, practiceReducer } from './practiceMachine'
 
@@ -40,7 +38,6 @@ export function PracticeSession({
   piece,
   midi,
   range,
-  onRangeChange,
   onEditableChange,
   onAttemptRecorded,
 }: {
@@ -48,11 +45,9 @@ export function PracticeSession({
   piece: Piece
   midi: UseMidiInputResult
   range: MeasureRange
-  onRangeChange: (range: MeasureRange) => void
   onEditableChange: (editable: boolean) => void
   onAttemptRecorded: (sectionId: string) => void
 }) {
-  const measureCount = osmd.Sheet.SourceMeasures.length
   const [tempoBpm, setTempoBpm] = useState(80)
   const [state, dispatch] = useReducer(practiceReducer, initialPracticeState)
   const [currentBeat, setCurrentBeat] = useState(0)
@@ -242,52 +237,65 @@ export function PracticeSession({
 
   return (
     <div className="practice-session">
-      <div className="practice-controls">
-        <SectionPicker measureCount={measureCount} range={range} onChange={onRangeChange} disabled={!editable} />
-        <TempoControl tempoBpm={tempoBpm} onChange={setTempoBpm} disabled={!editable} />
+      <div className="practice-action-bar">
+        <div className="practice-controls">
+          <span className="practice-section-label">
+            Measures {range.startMeasure}–{range.endMeasure}
+          </span>
 
-        {state.status === 'SectionConfigured' && (
-          <button type="button" onClick={() => void handleStart()} disabled={!midi.connected}>
-            Start
-          </button>
-        )}
-        {(state.status === 'CountingIn' || state.status === 'Attempting') && (
-          <button type="button" onClick={() => dispatch({ type: 'stop' })}>
-            Stop
-          </button>
-        )}
-        {!midi.connected && state.status === 'SectionConfigured' && (
-          <span className="practice-hint">Connect a MIDI device to start practicing.</span>
-        )}
+          {(state.status === 'CountingIn' || state.status === 'Attempting') && (
+            <>
+              <div className="beat-indicator">
+                {Array.from({ length: beatsPerMeasure }, (_, i) => (
+                  <span key={i} className={`beat-dot${i === currentBeat ? ' beat-dot-active' : ''}`} />
+                ))}
+              </div>
+              {state.status === 'CountingIn' && <span className="practice-status">Count-in…</span>}
+              {state.status === 'Attempting' && <span className="practice-status">Playing…</span>}
+            </>
+          )}
+
+          <TempoControl tempoBpm={tempoBpm} onChange={setTempoBpm} disabled={!editable} />
+
+          {state.status === 'SectionConfigured' && (
+            <button type="button" onClick={() => void handleStart()} disabled={!midi.connected}>
+              Start
+            </button>
+          )}
+          {(state.status === 'CountingIn' || state.status === 'Attempting') && (
+            <button type="button" onClick={() => dispatch({ type: 'stop' })}>
+              Stop
+            </button>
+          )}
+          {state.status === 'AttemptComplete' && (
+            <>
+              <div className="practice-result-summary">
+                {state.aborted && (
+                  <span className="banner banner-warning practice-result-aborted">Stopped early</span>
+                )}
+                <span className="practice-result-text">
+                  Pitch {Math.round(state.aggregate.pitchAccuracy * 100)}% · Timing{' '}
+                  {Math.round(state.aggregate.timingAccuracy * 100)}% · {state.aggregate.correct}/
+                  {state.aggregate.expected} notes · {state.aggregate.missed} missed · {state.aggregate.extra} wrong ·{' '}
+                  {state.aggregate.onTime} on / {state.aggregate.early} early / {state.aggregate.late} late
+                </span>
+              </div>
+              <button type="button" onClick={() => dispatch({ type: 'repeat' })}>
+                Repeat
+              </button>
+              <button type="button" onClick={handleAdjust}>
+                Change section
+              </button>
+              <button type="button" onClick={handleDone}>
+                Done
+              </button>
+            </>
+          )}
+          {!midi.connected && state.status === 'SectionConfigured' && (
+            <span className="practice-hint">Connect a MIDI device to start practicing.</span>
+          )}
+        </div>
       </div>
-
-      {(state.status === 'CountingIn' || state.status === 'Attempting') && (
-        <div className="beat-indicator">
-          {Array.from({ length: beatsPerMeasure }, (_, i) => (
-            <span key={i} className={`beat-dot${i === currentBeat ? ' beat-dot-active' : ''}`} />
-          ))}
-        </div>
-      )}
-
-      {state.status === 'CountingIn' && <p className="practice-status">Count-in…</p>}
-      {state.status === 'Attempting' && <p className="practice-status">Playing…</p>}
-
-      {state.status === 'AttemptComplete' && (
-        <div className="practice-attempt-complete">
-          <AttemptResult aggregate={state.aggregate} aborted={state.aborted} />
-          <div className="practice-controls">
-            <button type="button" onClick={() => dispatch({ type: 'repeat' })}>
-              Repeat
-            </button>
-            <button type="button" onClick={handleAdjust}>
-              Adjust section
-            </button>
-            <button type="button" onClick={handleDone}>
-              Done
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

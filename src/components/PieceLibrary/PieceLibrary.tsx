@@ -14,10 +14,22 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
     refresh()
   }, [])
 
+  const isIOS =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  const accept = isIOS
+    ? 'application/octet-stream,text/xml,application/xml,application/vnd.recordare.musicxml+xml,.xml,.musicxml,.mxl'
+    : '.xml,.musicxml,.mxl,text/xml,application/xml,application/vnd.recordare.musicxml+xml'
+
   const handleFile = async (file: File) => {
     setError(undefined)
     try {
-      const musicXml = file.name.toLowerCase().endsWith('.mxl')
+      const ext = file.name.split('.').pop()?.toLowerCase()
+      if (!['xml', 'musicxml', 'mxl'].includes(ext ?? '')) {
+        setError('Unsupported file type — please choose a .xml, .musicxml, or .mxl file.')
+        return
+      }
+      const musicXml = ext === 'mxl'
         ? await decompressMxl(await file.arrayBuffer())
         : await file.text()
       const titleMatch = musicXml.match(/<work-title>([^<]*)<\/work-title>/)
@@ -51,7 +63,7 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
       <input
         ref={fileInputRef}
         type="file"
-        accept=".xml,.musicxml,.mxl"
+        accept={accept}
         onChange={(e) => {
           const file = e.target.files?.[0]
           if (file) void handleFile(file)

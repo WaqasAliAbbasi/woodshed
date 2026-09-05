@@ -1,8 +1,8 @@
 import type { OpenSheetMusicDisplay } from 'opensheetmusicdisplay'
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { Piece } from '../../lib/db/db'
 import type { MeasureRange } from '../../lib/musicxml/types'
-import type { UseMidiInputResult } from '../MidiDeviceSelector/useMidiInput'
+import type { UseMidiInputResult } from '../InputSourceSelector/useMidiInput'
 import { ScoreViewer } from '../ScoreViewer/ScoreViewer'
 import { PracticeSession } from './PracticeSession'
 
@@ -29,11 +29,16 @@ export function PracticeWorkspace({
   const [anchorMeasure, setAnchorMeasure] = useState<number | undefined>(undefined)
   const [editable, setEditable] = useState(true)
 
-  useEffect(() => {
-    if (osmd && range === undefined) {
-      setRange({ startMeasure: 1, endMeasure: Math.min(DEFAULT_RANGE_LENGTH_MEASURES, osmd.Sheet.SourceMeasures.length) })
+  // The range is derived from the loaded score once OSMD is ready, so it's
+  // initialized in the onReady handler rather than in an effect (which would
+  // trigger a cascading render). ScoreViewer is keyed by piece.id, so a new
+  // piece remounts it and osmd arrives fresh.
+  const handleOsmdReady = useCallback((loaded: OpenSheetMusicDisplay | undefined) => {
+    setOsmd(loaded)
+    if (loaded && range === undefined) {
+      setRange({ startMeasure: 1, endMeasure: Math.min(DEFAULT_RANGE_LENGTH_MEASURES, loaded.Sheet.SourceMeasures.length) })
     }
-  }, [osmd, range])
+  }, [range])
 
   const handleMeasureClick = (measureNumber: number) => {
     if (anchorMeasure === undefined) {
@@ -57,8 +62,9 @@ export function PracticeWorkspace({
   return (
     <>
       <ScoreViewer
+        key={piece.id}
         musicXml={piece.musicXml}
-        onReady={setOsmd}
+        onReady={handleOsmdReady}
         range={range}
         clickable={editable}
         onMeasureClick={handleMeasureClick}
@@ -69,7 +75,6 @@ export function PracticeWorkspace({
           piece={piece}
           midi={midi}
           range={range}
-          onRangeChange={setRange}
           onEditableChange={handleEditableChange}
           onAttemptRecorded={onAttemptRecorded}
         />

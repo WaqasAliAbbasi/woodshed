@@ -19,6 +19,15 @@ export async function getPiece(id: string): Promise<Piece | undefined> {
   return db.get('pieces', id)
 }
 
+export async function renamePiece(id: string, title: string): Promise<Piece> {
+  const db = await getDb()
+  const piece = await db.get('pieces', id)
+  if (!piece) throw new Error(`Piece ${id} not found`)
+  const renamed: Piece = { ...piece, title, updatedAt: Date.now() }
+  await db.put('pieces', renamed)
+  return renamed
+}
+
 export async function deletePiece(id: string): Promise<void> {
   const db = await getDb()
   await db.delete('pieces', id)

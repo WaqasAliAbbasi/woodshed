@@ -16,7 +16,7 @@ import {
 } from '../../lib/musicxml/buildExpectedTimeline'
 import type { ExpectedChordEvent, MeasureRange } from '../../lib/musicxml/types'
 import { ACCEPT_MS, NoteMatcher } from '../../lib/scoring/matcher'
-import { getDefaultMusicColor } from '../../lib/theme'
+import { CORRECT_COLOR, WRONG_COLOR, getDefaultMusicColor } from '../../lib/theme'
 import type { MidiNoteEvent } from '../../lib/midi/midiEvents'
 import { HandFilterControl } from '../HandFilterControl/HandFilterControl'
 import type { UseMidiInputResult } from '../InputSourceSelector/useMidiInput'
@@ -26,8 +26,6 @@ import { initialPracticeState, practiceReducer } from './practiceMachine'
 const COUNT_IN_MEASURES = 1
 const LOOP_END_GRACE_SEC = 0.5
 const LEAD_IN_SEC = 0.15
-const CORRECT_COLOR = '#22c55e'
-const WRONG_COLOR = '#ef4444'
 
 export function PracticeSession({
   osmd,

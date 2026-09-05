@@ -4,6 +4,7 @@ import { HistoryView } from './components/History/HistoryView'
 import { InputSourceSelector } from './components/InputSourceSelector/InputSourceSelector'
 import { useMidiInput } from './components/InputSourceSelector/useMidiInput'
 import { PieceLibrary } from './components/PieceLibrary/PieceLibrary'
+import { PieceProgress } from './components/PieceProgress/PieceProgress'
 import { PracticeWorkspace } from './components/PracticeSession/PracticeWorkspace'
 import { renamePiece } from './lib/db/piecesRepo'
 import type { Piece } from './lib/db/db'
@@ -87,8 +88,14 @@ function App() {
       <PracticeWorkspace
         piece={piece}
         midi={midi}
+        progressRefreshKey={historyRefreshKey}
         onAttemptRecorded={() => setHistoryRefreshKey((k) => k + 1)}
       />
+
+      <section className="panel">
+        <h2>Progress</h2>
+        <PieceProgress pieceId={piece.id} refreshKey={historyRefreshKey} />
+      </section>
 
       <section className="panel">
         <h2>History</h2>

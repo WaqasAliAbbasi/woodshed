@@ -14,6 +14,8 @@
   --danger-text: #7a1f1f;
   --warning-bg: #fff3cd;
   --warning-text: #7a5c00;
+  --success-bg: #dcf5e3;
+  --success-text: #1a6b34;
   --radius-sm: 4px;
   --radius: 8px;
   color-scheme: light dark;
@@ -43,6 +45,8 @@
     --danger-text: #f5a3a3;
     --warning-bg: #3a3018;
     --warning-text: #f0cf7a;
+    --success-bg: #17301f;
+    --success-text: #7ad99a;
   }
 }
 

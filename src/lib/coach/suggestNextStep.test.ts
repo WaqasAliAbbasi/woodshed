@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Attempt, Section } from '../db/db'
 import type { AttemptAggregate } from '../scoring/types'
-import { suggestNextStep } from './suggestNextStep'
+import { classifyAccuracy, suggestNextStep } from './suggestNextStep'
 
 function section(overrides: Partial<Section> = {}): Section {
   return {
@@ -114,5 +114,20 @@ describe('suggestNextStep', () => {
   it('falls back to a generic label when the section no longer exists', () => {
     const result = suggestNextStep([], [attempt({ timestamp: 1, aggregate: aggregate(0.5, 0.5) })])
     expect(result.headline).toMatch(/that section/i)
+  })
+})
+
+describe('classifyAccuracy', () => {
+  it('is struggling below either threshold', () => {
+    expect(classifyAccuracy(0.79, 0.9)).toBe('struggling')
+    expect(classifyAccuracy(0.9, 0.69)).toBe('struggling')
+  })
+
+  it('is ready at/above both thresholds', () => {
+    expect(classifyAccuracy(0.95, 0.85)).toBe('ready')
+  })
+
+  it('is progressing in the middle band', () => {
+    expect(classifyAccuracy(0.88, 0.85)).toBe('progressing')
   })
 })

@@ -1,5 +1,20 @@
 import { KEY_TO_NOTE, midiNoteToName } from '../../lib/midi/virtualKeyboard'
+import { isIOS } from '../../lib/platform'
 import type { UseMidiInputResult } from './useMidiInput'
+
+const MIDIWEB_BROWSER_URL = 'https://apps.apple.com/hk/app/midiweb-browser/id6757226617'
+
+/**
+ * MIDIWeb Browser documents no custom URL scheme for other pages to open a
+ * URL directly inside it — the only thing that reliably lands it in iOS's
+ * share sheet is the standard Web Share API (the same mechanism as tapping
+ * Safari's own Share button). This can't pre-select MIDIWeb Browser for the
+ * user (no web API exposes that); it just raises the OS sheet they'd
+ * otherwise have to find themselves, with MIDIWeb Browser as one of the options.
+ */
+function shareCurrentPage(): void {
+  navigator.share({ url: window.location.href, title: document.title }).catch(() => {})
+}
 
 function KeyboardLegend() {
   return (
@@ -56,8 +71,27 @@ export function InputSourceSelector({ midi }: { midi: UseMidiInputResult }) {
 
       {!midi.supported && (
         <div className="banner banner-warning">
-          Web MIDI isn't supported in this browser — computer keyboard input only. Use Chrome, Edge, or Firefox 108+
-          to play with a MIDI device.
+          Web MIDI isn't supported in this browser — computer keyboard input only.{' '}
+          {isIOS() ? (
+            <>
+              No browser on iOS/iPadOS supports Web MIDI, including Safari — install{' '}
+              <a href={MIDIWEB_BROWSER_URL} target="_blank" rel="noopener noreferrer">
+                MIDIWeb Browser
+              </a>
+              , then {typeof navigator.share === 'function' ? 'share this page into it' : 'open this page there'} to
+              connect a MIDI device.
+              {typeof navigator.share === 'function' && (
+                <>
+                  {' '}
+                  <button type="button" className="share-page" onClick={shareCurrentPage}>
+                    Share this page
+                  </button>
+                </>
+              )}
+            </>
+          ) : (
+            'Use Chrome, Edge, or Firefox 108+ to play with a MIDI device.'
+          )}
         </div>
       )}
 

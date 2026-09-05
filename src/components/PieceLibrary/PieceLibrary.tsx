@@ -3,6 +3,7 @@ import { createPiece, deletePiece, listPieces } from '../../lib/db/piecesRepo'
 import type { Piece } from '../../lib/db/db'
 import { decompressMxl } from '../../lib/musicxml/loadMxl'
 import { parseMusicXmlMetadata } from '../../lib/musicxml/parseMetadata'
+import { isIOS } from '../../lib/platform'
 
 export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void }) {
   const [pieces, setPieces] = useState<Piece[]>([])
@@ -15,10 +16,7 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
     refresh()
   }, [])
 
-  const isIOS =
-    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  const accept = isIOS
+  const accept = isIOS()
     ? 'application/octet-stream,text/xml,application/xml,application/vnd.recordare.musicxml+xml,.xml,.musicxml,.mxl'
     : '.xml,.musicxml,.mxl,text/xml,application/xml,application/vnd.recordare.musicxml+xml'
 

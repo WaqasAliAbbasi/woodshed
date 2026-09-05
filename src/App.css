@@ -322,6 +322,54 @@
   color: var(--muted);
 }
 
+.status-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.status-badge-struggling {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+.status-badge-progressing {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.status-badge-ready {
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.progress-toggle {
+  margin-bottom: 0.5rem;
+}
+
+.progress-legend {
+  display: flex;
+  gap: 1rem;
+  padding: 0.4rem 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.progress-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.progress-swatch {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+}
+
 .coach-suggestion {
   background: var(--accent-soft-bg);
   color: var(--accent-soft-text);

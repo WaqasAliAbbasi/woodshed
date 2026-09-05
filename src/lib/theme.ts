@@ -1,3 +1,8 @@
+/** Shared note-feedback colors — live per-note scoring (PracticeSession) and the piece-progress heatmap (ScoreViewer) both use these so "green" means the same thing everywhere in the app. */
+export const CORRECT_COLOR = '#22c55e'
+export const PROGRESSING_COLOR = '#f59e0b'
+export const WRONG_COLOR = '#ef4444'
+
 /**
  * OSMD paints note/stem/clef colors once at render time rather than
  * inheriting CSS, so it needs the current theme's text color handed to it

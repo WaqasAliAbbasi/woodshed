@@ -21,6 +21,21 @@ const READY_PITCH_ACCURACY = 0.95
 const READY_TIMING_ACCURACY = 0.85
 const TEMPO_STEP_BPM = 10
 
+export type SectionStatus = 'struggling' | 'progressing' | 'ready'
+
+/**
+ * Classifies a single attempt's accuracy into the same three bands
+ * `suggestNextStep` uses for its headline — shared so the piece-wide
+ * progress overview (heatmap + summary table) colors a section exactly the
+ * way the coach would talk about it, instead of drifting to its own
+ * thresholds over time.
+ */
+export function classifyAccuracy(pitchAccuracy: number, timingAccuracy: number): SectionStatus {
+  if (pitchAccuracy < STRUGGLING_PITCH_ACCURACY || timingAccuracy < STRUGGLING_TIMING_ACCURACY) return 'struggling'
+  if (pitchAccuracy >= READY_PITCH_ACCURACY && timingAccuracy >= READY_TIMING_ACCURACY) return 'ready'
+  return 'progressing'
+}
+
 /**
  * A minimal rule-based "what should I practice next" suggestion, derived
  * from this piece's attempt history — the one thing the practice loop was
@@ -43,15 +58,16 @@ export function suggestNextStep(sections: Section[], attempts: Attempt[]): Coach
   const { pitchAccuracy, timingAccuracy } = mostRecent.aggregate
   const pitchPct = Math.round(pitchAccuracy * 100)
   const timingPct = Math.round(timingAccuracy * 100)
+  const status = classifyAccuracy(pitchAccuracy, timingAccuracy)
 
-  if (pitchAccuracy < STRUGGLING_PITCH_ACCURACY || timingAccuracy < STRUGGLING_TIMING_ACCURACY) {
+  if (status === 'struggling') {
     return {
       headline: `Repeat ${label} at ${mostRecent.tempoBpm} BPM`,
       detail: `Last attempt: ${pitchPct}% pitch, ${timingPct}% timing — stay at this tempo until it's solid.`,
     }
   }
 
-  if (pitchAccuracy >= READY_PITCH_ACCURACY && timingAccuracy >= READY_TIMING_ACCURACY) {
+  if (status === 'ready') {
     return {
       headline: `Bump ${label} to ${mostRecent.tempoBpm + TEMPO_STEP_BPM} BPM`,
       detail: `Last attempt: ${pitchPct}% pitch, ${timingPct}% timing at ${mostRecent.tempoBpm} BPM — solid enough to push the tempo.`,

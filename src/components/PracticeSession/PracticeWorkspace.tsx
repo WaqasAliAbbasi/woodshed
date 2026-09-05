@@ -1,6 +1,9 @@
 import type { OpenSheetMusicDisplay } from 'opensheetmusicdisplay'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { summarizeSectionProgress, type SectionProgress } from '../../lib/coach/pieceProgress'
+import { listAttemptsForPiece } from '../../lib/db/attemptsRepo'
 import type { Piece } from '../../lib/db/db'
+import { listSectionsForPiece } from '../../lib/db/sectionsRepo'
 import { getStaffCount, type HandFilter } from '../../lib/musicxml/buildExpectedTimeline'
 import type { MeasureRange } from '../../lib/musicxml/types'
 import type { UseMidiInputResult } from '../InputSourceSelector/useMidiInput'
@@ -19,10 +22,13 @@ const DEFAULT_RANGE_LENGTH_MEASURES = 4
 export function PracticeWorkspace({
   piece,
   midi,
+  progressRefreshKey,
   onAttemptRecorded,
 }: {
   piece: Piece
   midi: UseMidiInputResult
+  /** Bumped by the parent after every recorded attempt, so the progress heatmap picks up the new result. */
+  progressRefreshKey: number
   onAttemptRecorded: (sectionId: string) => void
 }) {
   const [osmd, setOsmd] = useState<OpenSheetMusicDisplay | undefined>(undefined)
@@ -31,6 +37,19 @@ export function PracticeWorkspace({
   const [editable, setEditable] = useState(true)
   const [handFilter, setHandFilter] = useState<HandFilter>('both')
   const [staffCount, setStaffCount] = useState(1)
+  const [progress, setProgress] = useState<SectionProgress[]>([])
+  const [showProgress, setShowProgress] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([listSectionsForPiece(piece.id), listAttemptsForPiece(piece.id)]).then(([sections, attempts]) => {
+      if (cancelled) return
+      setProgress(summarizeSectionProgress(sections, attempts))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [piece.id, progressRefreshKey])
 
   // The range is derived from the loaded score once OSMD is ready, so it's
   // initialized in the onReady handler rather than in an effect (which would
@@ -75,6 +94,11 @@ export function PracticeWorkspace({
 
   return (
     <>
+      {progress.length > 0 && (
+        <button type="button" className="progress-toggle" onClick={() => setShowProgress((v) => !v)}>
+          {showProgress ? 'Hide progress' : 'Show progress'}
+        </button>
+      )}
       <ScoreViewer
         key={piece.id}
         musicXml={piece.musicXml}
@@ -83,6 +107,8 @@ export function PracticeWorkspace({
         clickable={editable}
         onMeasureClick={handleMeasureClick}
         handFilter={handFilter}
+        progress={progress}
+        showProgress={showProgress}
       />
       {osmd && range && (
         <PracticeSession

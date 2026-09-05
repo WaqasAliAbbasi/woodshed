@@ -1,7 +1,7 @@
 /** Shared note-feedback colors — live per-note scoring (PracticeSession) and the piece-progress heatmap (ScoreViewer) both use these so "green" means the same thing everywhere in the app. */
-export const CORRECT_COLOR = '#22c55e'
-export const PROGRESSING_COLOR = '#f59e0b'
-export const WRONG_COLOR = '#ef4444'
+export const CORRECT_COLOR = '#5b7f52'
+export const PROGRESSING_COLOR = '#b8792e'
+export const WRONG_COLOR = '#a6472e'
 
 /**
  * OSMD paints note/stem/clef colors once at render time rather than
@@ -15,6 +15,11 @@ export const WRONG_COLOR = '#ef4444'
  */
 export function getDefaultMusicColor(): string {
   return getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#000'
+}
+
+/** Same rationale as {@link getDefaultMusicColor}: OSMD paints once at render time, so the current range-selection highlight needs the resolved `--accent` handed in explicitly rather than inherited via CSS. */
+export function getAccentColor(): string {
+  return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#b8792e'
 }
 
 /** Calls `onChange` whenever the OS/browser light-dark preference flips while subscribed. Returns an unsubscribe function. */

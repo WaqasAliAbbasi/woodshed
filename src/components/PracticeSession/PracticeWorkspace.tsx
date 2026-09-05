@@ -121,6 +121,7 @@ export function PracticeWorkspace({
           staffCount={staffCount}
           onEditableChange={handleEditableChange}
           onAttemptRecorded={onAttemptRecorded}
+          progress={progress}
         />
       )}
     </>

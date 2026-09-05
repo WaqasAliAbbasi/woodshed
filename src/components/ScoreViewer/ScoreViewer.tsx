@@ -4,10 +4,9 @@ import type { SectionProgress } from '../../lib/coach/pieceProgress'
 import { buildExpectedTimeline, type HandFilter } from '../../lib/musicxml/buildExpectedTimeline'
 import { findMeasureNumberAt } from '../../lib/musicxml/measureHitTest'
 import type { MeasureRange } from '../../lib/musicxml/types'
-import { CORRECT_COLOR, PROGRESSING_COLOR, WRONG_COLOR, getDefaultMusicColor } from '../../lib/theme'
+import { CORRECT_COLOR, PROGRESSING_COLOR, WRONG_COLOR, getAccentColor, getDefaultMusicColor } from '../../lib/theme'
 import { useOSMD } from './useOSMD'
 
-const HIGHLIGHT_COLOR = '#3b82f6'
 /** Tempo doesn't matter here — only graphicalNotes (not onsetSec) is used for highlighting. */
 const HIGHLIGHT_TEMPO_BPM = 120
 
@@ -101,8 +100,9 @@ export function ScoreViewer({
 
     if (clickable && range) {
       const notes = buildExpectedTimeline(osmd, range, HIGHLIGHT_TEMPO_BPM, handFilter).flatMap((e) => e.graphicalNotes)
+      const highlightColor = getAccentColor()
       for (const note of notes) {
-        note.setColor(HIGHLIGHT_COLOR, { applyToNoteheads: true })
+        note.setColor(highlightColor, { applyToNoteheads: true })
       }
       paintedNotes.push(...notes)
     }

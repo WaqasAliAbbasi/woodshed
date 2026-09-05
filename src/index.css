@@ -1,27 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Piazzolla:wght@500;600;700&family=Work+Sans:wght@400;500;600;700&display=swap');
+
 :root {
-  --text: #24272e;
-  --bg: #fff;
-  --surface: #f7f7f8;
-  --surface-hover: #ececee;
-  --border: #ddd;
-  --border-subtle: #eee;
-  --muted: #666;
-  --accent: #3b82f6;
-  --accent-text: #fff;
-  --accent-soft-bg: #eaf2fe;
-  --accent-soft-text: #1e3a5f;
-  --danger-bg: #fde2e2;
-  --danger-text: #7a1f1f;
-  --warning-bg: #fff3cd;
-  --warning-text: #7a5c00;
-  --success-bg: #dcf5e3;
-  --success-text: #1a6b34;
-  --radius-sm: 4px;
-  --radius: 8px;
+  --text: #26201a;
+  --bg: #f6ecd9;
+  --surface: #ecdbb8;
+  --surface-hover: #e2cd9e;
+  --border: #d8c297;
+  --border-subtle: #e7d6ae;
+  --muted: #6e5b40;
+  --accent: #b8792e;
+  --accent-text: #fff8ec;
+  --accent-soft-bg: #efd9ae;
+  --accent-soft-text: #6b4a1e;
+  --pine: #33513f;
+  --danger-bg: #f3dcd3;
+  --danger-text: #7a2e18;
+  --warning-bg: #f7e4be;
+  --warning-text: #6b4a12;
+  --success-bg: #e1ead9;
+  --success-text: #2f4a2a;
+  --shadow-color: rgba(43, 31, 15, 0.18);
+  --radius-sm: 6px;
+  --radius: 12px;
+  --font-body: 'Work Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Piazzolla', 'Iowan Old Style', serif;
   color-scheme: light dark;
   color: var(--text);
   background: var(--bg);
-  font: 16px/145% system-ui, 'Segoe UI', Roboto, sans-serif;
+  font: 16px/145% var(--font-body);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -30,28 +36,35 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #d1d3d8;
-    --bg: #16171d;
-    --surface: #1e1f27;
-    --surface-hover: #262733;
-    --border: #34353f;
-    --border-subtle: #292a33;
-    --muted: #9a9ba5;
-    --accent: #629bf8;
-    --accent-text: #0f172a;
-    --accent-soft-bg: #1c2b42;
-    --accent-soft-text: #bcd6fb;
-    --danger-bg: #3a1f1f;
-    --danger-text: #f5a3a3;
+    --text: #efe3cc;
+    --bg: #1c1712;
+    --surface: #2a2015;
+    --surface-hover: #362a19;
+    --border: #40331f;
+    --border-subtle: #332818;
+    --muted: #b3a186;
+    --accent: #d79a4c;
+    --accent-text: #241705;
+    --accent-soft-bg: #3b2c16;
+    --accent-soft-text: #e9c485;
+    --pine: #7fae95;
+    --danger-bg: #3a2018;
+    --danger-text: #e08b6d;
     --warning-bg: #3a3018;
-    --warning-text: #f0cf7a;
-    --success-bg: #17301f;
-    --success-text: #7ad99a;
+    --warning-text: #e9c26c;
+    --success-bg: #223326;
+    --success-text: #8fc07f;
+    --shadow-color: rgba(0, 0, 0, 0.5);
   }
 }
 
 body {
   margin: 0;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
 }
 
 input[type='radio'],
@@ -94,6 +107,7 @@ button:disabled {
   color: var(--accent-text);
   border-color: var(--accent);
   font-weight: 600;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.15);
 }
 
 .btn-primary:not(:disabled):hover {

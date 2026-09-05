@@ -58,41 +58,27 @@ export function HistoryView({ pieceId, refreshKey }: { pieceId: string; refreshK
       {attempts.length === 0 ? (
         <p className="history-empty">No attempts yet for this piece.</p>
       ) : (
-        <table className="history-table">
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>Section</th>
-              <th>Tempo</th>
-              <th>Pitch</th>
-              <th>Timing</th>
-              <th />
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {attempts.map((attempt) => (
-              <tr key={attempt.id}>
-                <td>{new Date(attempt.timestamp).toLocaleString()}</td>
-                <td>{sectionById?.get(attempt.sectionId)?.label ?? attempt.sectionId}</td>
-                <td>{attempt.tempoBpm} BPM</td>
-                <td>{Math.round(attempt.aggregate.pitchAccuracy * 100)}%</td>
-                <td>{Math.round(attempt.aggregate.timingAccuracy * 100)}%</td>
-                <td>{attempt.aborted ? 'stopped early' : ''}</td>
-                <td>
-                  <button
-                    type="button"
-                    className="attempt-delete"
-                    aria-label={`Delete attempt from ${new Date(attempt.timestamp).toLocaleString()}`}
-                    onClick={() => void handleDelete(attempt)}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ul className="log-list">
+          {attempts.map((attempt) => (
+            <li key={attempt.id} className="log-row">
+              <span className="log-when">{new Date(attempt.timestamp).toLocaleString()}</span>
+              <span className="log-range">{sectionById?.get(attempt.sectionId)?.label ?? attempt.sectionId}</span>
+              <span className="log-tempo">{attempt.tempoBpm} BPM</span>
+              <span className="log-score">
+                {Math.round(attempt.aggregate.pitchAccuracy * 100)} / {Math.round(attempt.aggregate.timingAccuracy * 100)}
+              </span>
+              {attempt.aborted && <span className="banner banner-warning log-aborted">Stopped early</span>}
+              <button
+                type="button"
+                className="attempt-delete"
+                aria-label={`Delete attempt from ${new Date(attempt.timestamp).toLocaleString()}`}
+                onClick={() => void handleDelete(attempt)}
+              >
+                Delete
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </>
   )

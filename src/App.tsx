@@ -9,6 +9,26 @@ import { PracticeWorkspace } from './components/PracticeSession/PracticeWorkspac
 import { renamePiece } from './lib/db/piecesRepo'
 import type { Piece } from './lib/db/db'
 
+function WoodshedMark() {
+  return (
+    <svg
+      className="brand-mark"
+      viewBox="0 0 48 48"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.6"
+      strokeLinejoin="round"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <path d="M4 23 L24 7 L44 23" />
+      <rect x="30" y="9" width="5" height="9" />
+      <path d="M8 23 V41 H40 V23" />
+      <rect x="20.5" y="29" width="7" height="12" />
+    </svg>
+  )
+}
+
 function RenamableTitle({ piece, onRenamed }: { piece: Piece; onRenamed: (piece: Piece) => void }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(piece.title)
@@ -68,7 +88,10 @@ function App() {
   if (!piece) {
     return (
       <main className="app">
-        <h1>Woodshed</h1>
+        <header className="brand">
+          <WoodshedMark />
+          <h1>Woodshed</h1>
+        </header>
         <PieceLibrary onSelect={setPiece} />
       </main>
     )
@@ -77,10 +100,13 @@ function App() {
   return (
     <main className="app">
       <div className="app-header">
-        <button type="button" onClick={() => setPiece(undefined)}>
-          ← Library
+        <button type="button" className="link-back" onClick={() => setPiece(undefined)}>
+          ‹ Library
         </button>
-        <RenamableTitle piece={piece} onRenamed={setPiece} />
+        <div className="app-title-block">
+          <RenamableTitle piece={piece} onRenamed={setPiece} />
+          {piece.composer && <p className="app-composer">{piece.composer}</p>}
+        </div>
       </div>
 
       <InputSourceSelector midi={midi} />
@@ -93,12 +119,12 @@ function App() {
       />
 
       <section className="panel">
-        <h2>Progress</h2>
+        <h2>Section progress</h2>
         <PieceProgress pieceId={piece.id} refreshKey={historyRefreshKey} />
       </section>
 
       <section className="panel">
-        <h2>History</h2>
+        <h2>Practice log</h2>
         <HistoryView pieceId={piece.id} refreshKey={historyRefreshKey} />
       </section>
     </main>

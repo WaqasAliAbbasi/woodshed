@@ -23,6 +23,13 @@ const TEMPO_STEP_BPM = 10
 
 export type SectionStatus = 'struggling' | 'progressing' | 'ready'
 
+/** Shared so every place a section's status reaches the UI (progress shelf, post-attempt stamp) uses the same word for it. */
+export const SECTION_STATUS_LABEL: Record<SectionStatus, string> = {
+  struggling: 'Struggling',
+  progressing: 'Progressing',
+  ready: 'Ready',
+}
+
 /**
  * Classifies a single attempt's accuracy into the same three bands
  * `suggestNextStep` uses for its headline — shared so the piece-wide

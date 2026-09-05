@@ -1,5 +1,8 @@
 import { NumberField } from '../NumberField/NumberField'
 
+const MIN_BPM = 20
+const MAX_BPM = 240
+
 export function TempoControl({
   tempoBpm,
   onChange,
@@ -14,10 +17,20 @@ export function TempoControl({
 }) {
   return (
     <div className="tempo-control">
-      <label>
-        Tempo (BPM)
-        <NumberField value={tempoBpm} min={20} max={240} disabled={disabled} onCommit={onChange} />
-      </label>
+      <div className="tempo-readout">
+        <NumberField value={tempoBpm} min={MIN_BPM} max={MAX_BPM} disabled={disabled} onCommit={onChange} />
+        <span className="tempo-unit">bpm</span>
+      </div>
+      <input
+        type="range"
+        className="tempo-slider"
+        aria-label="Tempo"
+        min={MIN_BPM}
+        max={MAX_BPM}
+        value={tempoBpm}
+        disabled={disabled}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
       {presets && presets.length > 1 && (
         <div className="tempo-presets">
           {presets.map((bpm) => (

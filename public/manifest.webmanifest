@@ -4,8 +4,8 @@
   "description": "Practice MusicXML pieces with MIDI play-along scoring and attempt history.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#16171d",
-  "theme_color": "#ffffff",
+  "background_color": "#1c1712",
+  "theme_color": "#f6ecd9",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",

@@ -1,13 +1,8 @@
 import { useEffect, useState } from 'react'
+import { SECTION_STATUS_LABEL } from '../../lib/coach/suggestNextStep'
 import { summarizeSectionProgress, type SectionProgress } from '../../lib/coach/pieceProgress'
 import { listAttemptsForPiece } from '../../lib/db/attemptsRepo'
 import { listSectionsForPiece } from '../../lib/db/sectionsRepo'
-
-const STATUS_LABEL: Record<SectionProgress['status'], string> = {
-  struggling: 'Struggling',
-  progressing: 'Progressing',
-  ready: 'Ready',
-}
 
 function formatAccuracy(attempt: SectionProgress['latest']): string {
   return `${Math.round(attempt.aggregate.pitchAccuracy * 100)}% pitch / ${Math.round(attempt.aggregate.timingAccuracy * 100)}% timing`
@@ -41,29 +36,19 @@ export function PieceProgress({ pieceId, refreshKey }: { pieceId: string; refres
   }
 
   return (
-    <table className="history-table">
-      <thead>
-        <tr>
-          <th>Section</th>
-          <th>Attempts</th>
-          <th>Best</th>
-          <th>Latest</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {summaries.map((summary) => (
-          <tr key={summary.section.id}>
-            <td>{summary.section.label}</td>
-            <td>{summary.attemptCount}</td>
-            <td>{formatAccuracy(summary.best)}</td>
-            <td>{formatAccuracy(summary.latest)}</td>
-            <td>
-              <span className={`status-badge status-badge-${summary.status}`}>{STATUS_LABEL[summary.status]}</span>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="shelf">
+      {summaries.map((summary) => (
+        <div key={summary.section.id} className={`tile tile-${summary.status}`}>
+          <span className="tile-range">{summary.section.label}</span>
+          <span className="tile-status">
+            <span className="tile-dot" />
+            {SECTION_STATUS_LABEL[summary.status]}
+          </span>
+          <span className="tile-meta">{summary.attemptCount} {summary.attemptCount === 1 ? 'attempt' : 'attempts'}</span>
+          <span className="tile-meta">Best {formatAccuracy(summary.best)}</span>
+          <span className="tile-meta">Latest {formatAccuracy(summary.latest)}</span>
+        </div>
+      ))}
+    </div>
   )
 }

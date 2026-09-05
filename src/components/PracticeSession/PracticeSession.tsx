@@ -2,6 +2,8 @@ import type { GraphicalNote, OpenSheetMusicDisplay } from 'opensheetmusicdisplay
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { correlateClock, getAudioContext, midiTimeStampToAudioTime, type ClockCorrelation } from '../../lib/clock/audioClock'
 import { Metronome } from '../../lib/clock/metronome'
+import { SECTION_STATUS_LABEL } from '../../lib/coach/suggestNextStep'
+import type { SectionProgress } from '../../lib/coach/pieceProgress'
 import { recordAttempt } from '../../lib/db/attemptsRepo'
 import type { Piece } from '../../lib/db/db'
 import { HAND_LABEL, resolveSection } from '../../lib/db/resolveSection'
@@ -37,6 +39,7 @@ export function PracticeSession({
   staffCount,
   onEditableChange,
   onAttemptRecorded,
+  progress,
 }: {
   osmd: OpenSheetMusicDisplay
   piece: Piece
@@ -48,6 +51,8 @@ export function PracticeSession({
   staffCount: number
   onEditableChange: (editable: boolean) => void
   onAttemptRecorded: (sectionId: string) => void
+  /** Looked up (by the just-completed section's id) to stamp the result with its overall struggling/progressing/ready status — not derived from this one attempt alone. */
+  progress: SectionProgress[]
 }) {
   const [tempoBpm, setTempoBpm] = useState(() => getDefaultTempoBpm(osmd))
   // The piece's own marked tempo, kept separate from `tempoBpm` (which the
@@ -241,82 +246,121 @@ export function PracticeSession({
     dispatch({ type: 'done' })
   }
 
+  const isLive = state.status === 'CountingIn' || state.status === 'Attempting'
+  // Swings fully left at the downbeat and fully right at the last beat of the measure — a single
+  // real-time readout of where the audio clock actually is, not a decorative loop of its own.
+  const needleAngle = isLive && beatsPerMeasure > 1 ? -24 + (currentBeat / (beatsPerMeasure - 1)) * 48 : 0
+  // Only meaningful once this attempt's section has a rolled-up status from the *whole* practice
+  // history (not just this one attempt) — may briefly be undefined right after scoring, until the
+  // progress summary above has refetched to include this attempt.
+  const sectionStatus =
+    state.status === 'AttemptComplete'
+      ? progress.find((p) => p.section.id === sectionIdRef.current)?.status
+      : undefined
+
   return (
     <div className="practice-session">
       <div className="practice-action-bar">
-        <div className="practice-controls">
-          <span className="practice-section-label">
-            Measures {range.startMeasure}–{range.endMeasure}
-            {HAND_LABEL[handFilter]}
-          </span>
-
-          {(state.status === 'CountingIn' || state.status === 'Attempting') && (
-            <>
-              <div className="beat-indicator">
+        <div className="deck">
+          <div className="deck-row">
+            <span className="practice-section-label">
+              Measures {range.startMeasure}–{range.endMeasure}
+              {HAND_LABEL[handFilter]}
+            </span>
+            <div className={`metronome${isLive ? ' metronome-live' : ''}`}>
+              <div className="metronome-base" />
+              <div className="metronome-needle" style={{ transform: `rotate(${needleAngle}deg)` }} />
+              <div className="metronome-ticks">
                 {Array.from({ length: beatsPerMeasure }, (_, i) => (
-                  <span key={i} className={`beat-dot${i === currentBeat ? ' beat-dot-active' : ''}`} />
+                  <span key={i} className={`metronome-tick${isLive && i === currentBeat ? ' metronome-tick-active' : ''}`} />
                 ))}
               </div>
-              {state.status === 'CountingIn' && <span className="practice-status">Count-in…</span>}
-              {state.status === 'Attempting' && <span className="practice-status">Playing…</span>}
-            </>
+            </div>
+          </div>
+
+          {editable && (
+            <div className="deck-row deck-idle-controls">
+              <TempoControl tempoBpm={tempoBpm} onChange={setTempoBpm} disabled={!editable} presets={tempoPresets} />
+              {staffCount > 1 && (
+                <HandFilterControl handFilter={handFilter} onChange={onHandFilterChange} disabled={!editable} />
+              )}
+            </div>
           )}
 
-          <TempoControl tempoBpm={tempoBpm} onChange={setTempoBpm} disabled={!editable} presets={tempoPresets} />
-
-          {staffCount > 1 && (
-            <HandFilterControl handFilter={handFilter} onChange={onHandFilterChange} disabled={!editable} />
+          {isLive && (
+            <div className="deck-row deck-status-text">
+              <span className="status-word">{state.status === 'CountingIn' ? 'Count-in…' : 'Playing…'}</span>
+            </div>
           )}
 
-          {state.status === 'SectionConfigured' && (
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => void handleStart()}
-              disabled={!midi.connected}
-            >
-              Start
-            </button>
-          )}
-          {(state.status === 'CountingIn' || state.status === 'Attempting') && (
-            <button type="button" onClick={() => dispatch({ type: 'stop' })}>
-              Stop
-            </button>
-          )}
           {state.status === 'AttemptComplete' && (
-            <>
-              <div className="practice-result-summary">
-                {state.aborted && (
-                  <span className="banner banner-warning practice-result-aborted">Stopped early</span>
-                )}
-                {state.aggregate.expected === 0 ? (
-                  <span className="practice-result-text">
-                    No {handFilter === 'both' ? '' : `${handFilter}-hand `}notes in this section — try a different range
-                    or hand.
-                  </span>
-                ) : (
-                  <span className="practice-result-text">
-                    Pitch {Math.round(state.aggregate.pitchAccuracy * 100)}% · Timing{' '}
-                    {Math.round(state.aggregate.timingAccuracy * 100)}% · {state.aggregate.correct}/
-                    {state.aggregate.expected} notes · {state.aggregate.missed} missed · {state.aggregate.extra} wrong ·{' '}
-                    {state.aggregate.onTime} on / {state.aggregate.early} early / {state.aggregate.late} late
-                  </span>
-                )}
+            <div className="deck-row deck-result">
+              {state.aborted && <span className="banner banner-warning practice-result-aborted">Stopped early</span>}
+              {state.aggregate.expected === 0 ? (
+                <span className="practice-result-text">
+                  No {handFilter === 'both' ? '' : `${handFilter}-hand `}notes in this section — try a different range
+                  or hand.
+                </span>
+              ) : (
+                <>
+                  <div className="stat">
+                    <span className="stat-label">Pitch</span>
+                    <span className="stat-value">{Math.round(state.aggregate.pitchAccuracy * 100)}%</span>
+                    <span className="stat-bar">
+                      <span style={{ width: `${Math.round(state.aggregate.pitchAccuracy * 100)}%` }} />
+                    </span>
+                  </div>
+                  <div className="stat">
+                    <span className="stat-label">Timing</span>
+                    <span className="stat-value">{Math.round(state.aggregate.timingAccuracy * 100)}%</span>
+                    <span className="stat-bar stat-bar-timing">
+                      <span style={{ width: `${Math.round(state.aggregate.timingAccuracy * 100)}%` }} />
+                    </span>
+                  </div>
+                  {sectionStatus && <div className={`stamp stamp-${sectionStatus}`}>{SECTION_STATUS_LABEL[sectionStatus]}</div>}
+                  <p className="tally">
+                    {state.aggregate.correct}/{state.aggregate.expected} notes · {state.aggregate.missed} missed ·{' '}
+                    {state.aggregate.extra} wrong · {state.aggregate.onTime} on / {state.aggregate.early} early /{' '}
+                    {state.aggregate.late} late
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
+          <div className="deck-row deck-actions">
+            {state.status === 'SectionConfigured' && (
+              <button
+                type="button"
+                className="btn-primary btn-round"
+                onClick={() => void handleStart()}
+                disabled={!midi.connected}
+              >
+                Start
+              </button>
+            )}
+            {isLive && (
+              <button type="button" className="btn-round" onClick={() => dispatch({ type: 'stop' })}>
+                Stop
+              </button>
+            )}
+            {state.status === 'AttemptComplete' && (
+              <div className="result-actions">
+                <button type="button" onClick={() => dispatch({ type: 'repeat' })}>
+                  Repeat
+                </button>
+                <button type="button" onClick={handleAdjust}>
+                  Change section
+                </button>
+                <button type="button" className="btn-primary" onClick={handleDone}>
+                  Done
+                </button>
               </div>
-              <button type="button" onClick={() => dispatch({ type: 'repeat' })}>
-                Repeat
-              </button>
-              <button type="button" onClick={handleAdjust}>
-                Change section
-              </button>
-              <button type="button" onClick={handleDone}>
-                Done
-              </button>
-            </>
-          )}
-          {!midi.connected && state.status === 'SectionConfigured' && (
-            <span className="practice-hint">Connect a MIDI device to start practicing.</span>
-          )}
+            )}
+            {!midi.connected && state.status === 'SectionConfigured' && (
+              <span className="practice-hint">Connect a MIDI device to start practicing.</span>
+            )}
+          </div>
         </div>
       </div>
     </div>

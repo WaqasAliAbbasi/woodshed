@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Woodshed — redesign mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Piazzolla:wght@500;600;700&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Static, non-wired design mockup. Click through screens/states with the
+     dark bar at top — that bar is a viewer control, not part of the app. */
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  :root {
+    --paper: #F6ECD9;
+    --panel: #E6D2A6;
+    --ink: #26201A;
+    --muted: #6E5B40;
+    --wood: #8B5E34;
+    --wood-line: #D8C297;
+    --brass: #B8792E;
+    --brass-hover: #9C6420;
+    --brass-soft: #EFD9AE;
+    --pine: #33513F;
+    --moss: #5B7F52;
+    --moss-soft: #E1EAD9;
+    --brick: #A6472E;
+    --brick-soft: #F3DCD3;
+    --shadow: rgba(43, 31, 15, 0.18);
+    --stage-bg: #DCCBA6;
+  }
+
+  html[data-theme="dark"] {
+    --paper: #1C1712;
+    --panel: #2A2015;
+    --ink: #EFE3CC;
+    --muted: #B3A186;
+    --wood: #A9784A;
+    --wood-line: #40331F;
+    --brass: #D79A4C;
+    --brass-hover: #E7AC5E;
+    --brass-soft: #3B2C16;
+    --pine: #7FAE95;
+    --moss: #7FAE72;
+    --moss-soft: #223326;
+    --brick: #D97456;
+    --brick-soft: #3A2018;
+    --shadow: rgba(0, 0, 0, 0.5);
+    --stage-bg: #14100C;
+  }
+
+  body {
+    margin: 0;
+    font-family: 'Work Sans', system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--stage-bg);
+  }
+
+  h1, h2, p, ul { margin: 0; }
+
+  button { font: inherit; }
+
+  :focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+  [hidden] { display: none !important; }
+
+  /* ---------- mockup viewer chrome (not part of the app) ---------- */
+
+  .mockup-bar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    padding: .6rem .9rem;
+    background: #20242b;
+    color: #c9cdd6;
+    font-size: .78rem;
+    border-bottom: 1px solid #3a3f4a;
+  }
+  .mockup-bar-label { opacity: .65; margin-right: auto; }
+  .mockup-bar-group { display: flex; gap: .3rem; }
+  .mockup-btn {
+    padding: .3rem .6rem;
+    border-radius: 5px;
+    border: 1px solid #454b58;
+    background: #2b303a;
+    color: #c9cdd6;
+    cursor: pointer;
+  }
+  .mockup-btn.is-active { background: #4c5568; color: #fff; border-color: #5c6579; }
+
+  .stage {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 2.5rem 1rem 4rem;
+  }
+
+  .screen {
+    width: 100%;
+    max-width: 560px;
+    background: var(--paper);
+    border-radius: 18px;
+    box-shadow: 0 30px 60px -20px var(--shadow), 0 2px 0 rgba(255, 255, 255, .15) inset;
+    overflow: hidden;
+    padding-bottom: 1.2rem;
+    height: fit-content;
+  }
+
+  /* ---------- shared blocks ---------- */
+
+  .block { padding: 1.1rem 1.5rem; }
+  .block-title { font-size: .95rem; font-weight: 600; margin: 0 0 .6rem; }
+  .hint { font-size: .8rem; color: var(--muted); margin: .5rem 0 0; }
+  .hint.center { text-align: center; }
+
+  .btn {
+    font-weight: 600;
+    font-size: .95rem;
+    padding: .75rem 1.1rem;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+  }
+  .btn-brass {
+    background: var(--brass);
+    color: #fff8ec;
+    box-shadow: 0 2px 0 var(--brass-hover), 0 6px 14px -6px var(--shadow);
+  }
+  .btn-brass:hover { background: var(--brass-hover); }
+  .btn-outline { background: transparent; border-color: var(--wood-line); color: var(--ink); }
+  .btn-outline:hover { background: var(--wood-line); }
+  .btn-block { width: 100%; margin-top: .5rem; }
+
+  .segmented { display: inline-flex; background: var(--wood-line); padding: 3px; border-radius: 999px; }
+  .segmented button {
+    font-size: .82rem;
+    font-weight: 600;
+    border: none;
+    background: none;
+    color: var(--ink);
+    padding: .4rem .8rem;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .segmented button.is-active { background: var(--paper); box-shadow: 0 1px 3px var(--shadow); }
+
+  /* ---------- library screen ---------- */
+
+  .brand { display: flex; align-items: center; gap: .6rem; padding: 1.6rem 1.5rem .6rem; }
+  .brand-mark { width: 34px; height: 34px; color: var(--pine); flex-shrink: 0; }
+  .brand h1 { font-family: 'Piazzolla', serif; font-weight: 600; font-size: 1.7rem; }
+
+  .piece-list { list-style: none; padding: 0; }
+  .piece-row + .piece-row { border-top: 1px solid var(--wood-line); }
+  .piece-row button {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+    text-align: left;
+    gap: .15rem;
+    background: none;
+    border: none;
+    padding: .85rem .2rem;
+    color: var(--ink);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color .12s ease, padding-left .12s ease;
+  }
+  .piece-row button:hover { background: var(--brass-soft); padding-left: .6rem; }
+  .piece-title { font-family: 'Piazzolla', serif; font-size: 1.08rem; font-weight: 600; }
+  .piece-composer { font-size: .85rem; color: var(--muted); }
+
+  /* ---------- practice screen ---------- */
+
+  .practice-header { display: flex; align-items: flex-start; gap: .9rem; padding: 1.3rem 1.5rem .8rem; }
+  .link-back {
+    background: none;
+    border: none;
+    padding: .3rem .2rem;
+    margin-top: .15rem;
+    color: var(--pine);
+    font-weight: 600;
+    font-size: .85rem;
+    cursor: pointer;
+  }
+  .practice-title h1 { font-family: 'Piazzolla', serif; font-size: 1.35rem; font-weight: 600; }
+  .practice-title p { margin: .15rem 0 0; color: var(--muted); font-size: .85rem; }
+
+  .input-row { display: flex; align-items: center; gap: .7rem; padding: 0 1.5rem .9rem; flex-wrap: wrap; }
+  .block-title-inline { font-size: .85rem; font-weight: 600; color: var(--muted); }
+
+  .score-wrap { padding: 0 1.1rem .6rem; }
+  .score-card { background: #fffaf0; border: 1px solid var(--wood-line); border-radius: 12px; padding: .9rem .6rem .5rem; }
+  html[data-theme="dark"] .score-card { background: #20190f; }
+  .score-card svg { width: 100%; height: auto; display: block; }
+
+  .deck {
+    margin: .6rem 1.1rem 0;
+    border-radius: 14px;
+    background: var(--panel);
+    background-image: repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.035) 0px, rgba(0, 0, 0, 0.035) 1px, transparent 1px, transparent 5px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), inset 0 6px 14px -10px rgba(0, 0, 0, .35);
+    padding: 1rem 1.2rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: .9rem;
+  }
+  .deck-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .deck-section-label { font-weight: 600; font-size: .92rem; }
+
+  .metronome { position: relative; width: 74px; height: 50px; flex-shrink: 0; }
+  .metronome-base { position: absolute; left: 6px; right: 6px; bottom: 10px; height: 2px; background: var(--wood-line); border-radius: 2px; }
+  .metronome-needle {
+    position: absolute;
+    left: 50%;
+    bottom: 10px;
+    width: 2px;
+    height: 34px;
+    background: var(--pine);
+    transform-origin: bottom center;
+    transform: rotate(0deg);
+    border-radius: 2px;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .metronome.is-live .metronome-needle { animation: swing .6s ease-in-out infinite alternate; }
+  }
+  @keyframes swing { from { transform: rotate(-24deg); } to { transform: rotate(24deg); } }
+  .metronome-ticks { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 4px; }
+  .metronome-ticks span { width: 6px; height: 6px; border-radius: 50%; background: var(--wood-line); }
+  @media (prefers-reduced-motion: no-preference) {
+    .metronome.is-live .metronome-ticks span { animation: pulse 1.2s steps(1) infinite; }
+    .metronome.is-live .metronome-ticks span:nth-child(1) { animation-delay: 0s; }
+    .metronome.is-live .metronome-ticks span:nth-child(2) { animation-delay: .3s; }
+    .metronome.is-live .metronome-ticks span:nth-child(3) { animation-delay: .6s; }
+    .metronome.is-live .metronome-ticks span:nth-child(4) { animation-delay: .9s; }
+  }
+  @keyframes pulse { 0% { background: var(--brass); } 24% { background: var(--wood-line); } 100% { background: var(--wood-line); } }
+
+  .dial-group { display: flex; flex-direction: column; gap: .5rem; min-width: 190px; flex: 1; }
+  .dial-readout { display: flex; align-items: baseline; gap: .3rem; font-family: 'Piazzolla', serif; }
+  .dial-readout .num { font-size: 2rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+  .dial-readout .unit { font-size: .75rem; color: var(--muted); font-family: 'Work Sans', sans-serif; }
+  .dial-track { position: relative; height: 6px; border-radius: 999px; background: var(--wood-line); }
+  .dial-fill { position: absolute; top: 0; left: 0; height: 100%; border-radius: 999px; background: var(--brass); width: 24%; }
+  .dial-knob {
+    position: absolute; top: 50%; left: 24%; width: 18px; height: 18px; margin: -9px 0 0 -9px;
+    border-radius: 50%; background: var(--brass); box-shadow: 0 2px 4px var(--shadow), 0 0 0 4px var(--paper);
+  }
+  .dial-presets { display: flex; gap: .4rem; }
+  .dial-presets button {
+    font-weight: 600; font-size: .78rem; padding: .3rem .55rem; border-radius: 999px;
+    border: 1px solid var(--wood-line); background: transparent; color: var(--ink); cursor: pointer;
+  }
+  .dial-presets button.is-active { background: var(--pine); border-color: var(--pine); color: #fff; }
+
+  .hands-group { display: flex; flex-direction: column; gap: .5rem; }
+  .field-label { font-size: .78rem; font-weight: 600; color: var(--muted); }
+
+  .deck-status-text { justify-content: center; }
+  .status-word { font-family: 'Piazzolla', serif; font-size: 1.15rem; font-weight: 600; color: var(--pine); }
+
+  .deck-result { flex-direction: column; align-items: stretch; gap: .7rem; }
+  .stat { display: flex; align-items: center; gap: .7rem; }
+  .stat-label { width: 60px; font-size: .82rem; font-weight: 600; color: var(--muted); }
+  .stat-value { font-family: 'Piazzolla', serif; font-weight: 600; font-size: 1.15rem; width: 52px; font-variant-numeric: tabular-nums; }
+  .stat-bar { flex: 1; height: 8px; border-radius: 999px; background: var(--wood-line); overflow: hidden; }
+  .stat-bar span { display: block; height: 100%; background: var(--moss); border-radius: 999px; }
+  .stat-bar-timing span { background: var(--brass); }
+
+  .stamp {
+    align-self: flex-start;
+    font-family: 'Piazzolla', serif;
+    font-weight: 600;
+    font-size: .95rem;
+    padding: .35rem 1.1rem;
+    border: 2px solid var(--pine);
+    border-radius: 999px;
+    color: var(--pine);
+    transform: rotate(-4deg);
+    position: relative;
+  }
+  .stamp::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border: 1px dashed var(--pine);
+    border-radius: 999px;
+    opacity: .5;
+  }
+  .stamp-progressing { border-color: var(--brass); color: var(--brass); }
+  .stamp-progressing::after { border-color: var(--brass); }
+  .stamp-struggling { border-color: var(--brick); color: var(--brick); }
+  .stamp-struggling::after { border-color: var(--brick); }
+
+  .tally { font-size: .82rem; color: var(--muted); }
+
+  .deck-actions { justify-content: center; }
+  .btn-round {
+    border-radius: 999px;
+    width: 92px;
+    height: 92px;
+    flex-direction: column;
+    gap: .3rem;
+    padding: 0;
+  }
+  .btn-round.btn-outline { background: var(--paper); border: 2px solid var(--wood-line); box-shadow: none; }
+  .btn-round svg { width: 16px; height: 16px; }
+  .result-actions { display: flex; gap: .5rem; flex-wrap: wrap; justify-content: center; width: 100%; }
+
+  /* ---------- progress + log ---------- */
+
+  .shelf { display: flex; gap: .6rem; overflow-x: auto; padding-bottom: .2rem; }
+  .tile {
+    flex: 0 0 auto; min-width: 92px; padding: .7rem .8rem; border-radius: 10px; border: 1px solid var(--wood-line);
+    display: flex; flex-direction: column; gap: .3rem; background: var(--paper);
+  }
+  .tile-range { font-weight: 600; font-size: .85rem; }
+  .tile-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .tile-word { font-size: .75rem; color: var(--muted); }
+  .tile-ready .tile-dot { background: var(--moss); }
+  .tile-progressing .tile-dot { background: var(--brass); }
+  .tile-struggling .tile-dot { background: var(--brick); }
+  .tile-new { opacity: .6; border-style: dashed; }
+  .tile-new .tile-dot { background: var(--wood-line); }
+
+  .log-list { list-style: none; padding: 0; display: flex; flex-direction: column; }
+  .log-list li { display: flex; justify-content: space-between; gap: .6rem; padding: .55rem 0; border-top: 1px solid var(--wood-line); font-size: .85rem; }
+  .log-list li:first-child { border-top: none; }
+  .log-when { color: var(--muted); flex: 1.2; }
+  .log-range { flex: 1; }
+  .log-score { font-variant-numeric: tabular-nums; font-weight: 600; }
+</style>
+</head>
+<body>
+
+  <div class="mockup-bar">
+    <span class="mockup-bar-label">Mockup viewer — not part of the app UI</span>
+    <div class="mockup-bar-group" id="screen-switch">
+      <button class="mockup-btn is-active" data-screen="library" type="button">Library</button>
+      <button class="mockup-btn" data-screen="practice" type="button">Practice</button>
+    </div>
+    <div class="mockup-bar-group" id="state-switch">
+      <button class="mockup-btn is-active" data-state="ready" type="button">Ready</button>
+      <button class="mockup-btn" data-state="counting" type="button">Count-in</button>
+      <button class="mockup-btn" data-state="playing" type="button">Playing</button>
+      <button class="mockup-btn" data-state="result" type="button">Result</button>
+    </div>
+    <button class="mockup-btn" id="theme-toggle" type="button">Dark mode</button>
+  </div>
+
+  <div class="stage">
+
+    <!-- ============ LIBRARY ============ -->
+    <main class="screen" id="screen-library">
+      <header class="brand">
+        <svg class="brand-mark" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round">
+          <path d="M4 23 L24 7 L44 23" />
+          <rect x="30" y="9" width="5" height="9" />
+          <path d="M8 23 V41 H40 V23" />
+          <rect x="20.5" y="29" width="7" height="12" />
+        </svg>
+        <h1>Woodshed</h1>
+      </header>
+
+      <section class="block">
+        <h2 class="block-title">Your pieces</h2>
+        <ul class="piece-list">
+          <li class="piece-row">
+            <button type="button" data-goto-practice>
+              <span class="piece-title">Down in the Valley</span>
+              <span class="piece-composer">Traditional</span>
+            </button>
+          </li>
+          <li class="piece-row">
+            <button type="button" data-goto-practice>
+              <span class="piece-title">La Raspa</span>
+              <span class="piece-composer">Traditional</span>
+            </button>
+          </li>
+          <li class="piece-row">
+            <button type="button" data-goto-practice>
+              <span class="piece-title">Loch Lomond</span>
+              <span class="piece-composer">Traditional</span>
+            </button>
+          </li>
+          <li class="piece-row">
+            <button type="button" data-goto-practice>
+              <span class="piece-title">Sonatina in C, Op. 36 No. 1</span>
+              <span class="piece-composer">Muzio Clementi</span>
+            </button>
+          </li>
+          <li class="piece-row">
+            <button type="button" data-goto-practice>
+              <span class="piece-title">Danny Boy</span>
+              <span class="piece-composer">Traditional</span>
+            </button>
+          </li>
+        </ul>
+        <button type="button" class="btn btn-brass btn-block"><span aria-hidden="true">+</span> Add a piece</button>
+        <p class="hint">MusicXML or compressed .mxl files</p>
+      </section>
+    </main>
+
+    <!-- ============ PRACTICE ============ -->
+    <main class="screen" id="screen-practice" hidden>
+      <header class="practice-header">
+        <button type="button" class="link-back" data-goto-library>‹ Library</button>
+        <div class="practice-title">
+          <h1>Down in the Valley</h1>
+          <p>Traditional · Moderato</p>
+        </div>
+      </header>
+
+      <div class="input-row">
+        <span class="block-title-inline">Input</span>
+        <div class="segmented">
+          <button type="button" class="is-active">Computer keys</button>
+          <button type="button">MIDI device</button>
+        </div>
+      </div>
+
+      <section class="score-wrap">
+        <div class="score-card">
+          <svg viewBox="0 0 560 170" role="img" aria-label="Sheet music excerpt, measures five through eight, selected for practice">
+            <rect x="26" y="10" width="534" height="132" rx="8" fill="var(--brass-soft)" opacity="0.55" />
+            <text x="8" y="52" font-size="42" fill="var(--ink)" font-family="serif" opacity="0.75">&#119070;</text>
+            <text x="6" y="126" font-size="30" fill="var(--ink)" font-family="serif" opacity="0.75">&#119074;</text>
+            <g stroke="var(--ink)" stroke-width="1" opacity="0.55">
+              <line x1="30" y1="20" x2="556" y2="20" /><line x1="30" y1="30" x2="556" y2="30" /><line x1="30" y1="40" x2="556" y2="40" /><line x1="30" y1="50" x2="556" y2="50" /><line x1="30" y1="60" x2="556" y2="60" />
+              <line x1="30" y1="90" x2="556" y2="90" /><line x1="30" y1="100" x2="556" y2="100" /><line x1="30" y1="110" x2="556" y2="110" /><line x1="30" y1="120" x2="556" y2="120" /><line x1="30" y1="130" x2="556" y2="130" />
+            </g>
+            <g stroke="var(--wood)" stroke-width="1.5" opacity="0.6">
+              <line x1="30" y1="20" x2="30" y2="130" /><line x1="170" y1="20" x2="170" y2="130" /><line x1="310" y1="20" x2="310" y2="130" /><line x1="450" y1="20" x2="450" y2="130" /><line x1="556" y1="20" x2="556" y2="130" />
+            </g>
+            <g stroke="none">
+              <ellipse cx="62" cy="40" rx="6" ry="4.5" fill="var(--moss)" />
+              <ellipse cx="102" cy="30" rx="6" ry="4.5" fill="var(--ink)" />
+              <ellipse cx="142" cy="100" rx="6" ry="4.5" fill="var(--brick)" />
+              <ellipse cx="202" cy="50" rx="6" ry="4.5" fill="var(--ink)" />
+              <ellipse cx="242" cy="110" rx="6" ry="4.5" fill="var(--moss)" />
+              <ellipse cx="282" cy="90" rx="6" ry="4.5" fill="var(--ink)" />
+              <ellipse cx="342" cy="20" rx="6" ry="4.5" fill="var(--ink)" />
+              <ellipse cx="382" cy="60" rx="6" ry="4.5" fill="var(--moss)" />
+              <ellipse cx="422" cy="120" rx="6" ry="4.5" fill="var(--ink)" />
+              <ellipse cx="482" cy="40" rx="6" ry="4.5" fill="var(--brick)" />
+              <ellipse cx="522" cy="100" rx="6" ry="4.5" fill="var(--ink)" />
+            </g>
+            <g font-size="11" fill="var(--muted)" font-family="Work Sans, sans-serif">
+              <text x="34" y="146">5</text><text x="174" y="146">6</text><text x="314" y="146">7</text><text x="454" y="146">8</text>
+            </g>
+          </svg>
+        </div>
+        <p class="hint center">Tap two measures to change your practice range</p>
+      </section>
+
+      <section class="deck" id="deck" data-state="ready">
+        <div class="deck-row">
+          <span class="deck-section-label">Measures 5–8 · Both hands</span>
+          <div class="metronome" id="metronome">
+            <div class="metronome-base"></div>
+            <div class="metronome-needle"></div>
+            <div class="metronome-ticks"><span></span><span></span><span></span><span></span></div>
+          </div>
+        </div>
+
+        <div class="deck-row" id="deck-idle-controls">
+          <div class="dial-group">
+            <div class="dial-readout"><span class="num">72</span><span class="unit">bpm</span></div>
+            <div class="dial-track"><div class="dial-fill"></div><div class="dial-knob"></div></div>
+            <div class="dial-presets">
+              <button type="button">37</button>
+              <button type="button">75</button>
+              <button type="button" class="is-active">112</button>
+            </div>
+          </div>
+          <div class="hands-group">
+            <span class="field-label">Hands</span>
+            <div class="segmented">
+              <button type="button">Left</button>
+              <button type="button" class="is-active">Both</button>
+              <button type="button">Right</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="deck-row deck-status-text" id="deck-status-text" hidden>
+          <span class="status-word">Count-in…</span>
+        </div>
+
+        <div class="deck-row deck-result" id="deck-result" hidden>
+          <div class="stat">
+            <span class="stat-label">Pitch</span>
+            <span class="stat-value">92%</span>
+            <span class="stat-bar"><span style="width:92%"></span></span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Timing</span>
+            <span class="stat-value">87%</span>
+            <span class="stat-bar stat-bar-timing"><span style="width:87%"></span></span>
+          </div>
+          <div class="stamp">Ready</div>
+          <p class="tally">38 of 41 notes · 2 missed, 1 wrong · 35 on time, 2 early, 1 late</p>
+        </div>
+
+        <div class="deck-row deck-actions">
+          <button type="button" class="btn btn-brass btn-round" id="btn-start">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l10-5.5z"/></svg>
+            Start
+          </button>
+          <button type="button" class="btn btn-outline btn-round" id="btn-stop" hidden>
+            <svg viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10"/></svg>
+            Stop
+          </button>
+          <div class="result-actions" id="result-actions" hidden>
+            <button type="button" class="btn btn-outline">Repeat</button>
+            <button type="button" class="btn btn-outline">Change section</button>
+            <button type="button" class="btn btn-brass">Done</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2 class="block-title">Section progress</h2>
+        <div class="shelf">
+          <div class="tile tile-ready"><span class="tile-range">m1–4</span><span class="tile-dot"></span><span class="tile-word">Ready</span></div>
+          <div class="tile tile-progressing"><span class="tile-range">m5–8</span><span class="tile-dot"></span><span class="tile-word">Progressing</span></div>
+          <div class="tile tile-struggling"><span class="tile-range">m9–12</span><span class="tile-dot"></span><span class="tile-word">Struggling</span></div>
+          <div class="tile tile-new"><span class="tile-range">m13–16</span><span class="tile-dot"></span><span class="tile-word">New</span></div>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2 class="block-title">Practice log</h2>
+        <ul class="log-list">
+          <li><span class="log-when">Today, 8:41pm</span><span class="log-range">m5–8 · both</span><span class="log-score">92 / 87</span></li>
+          <li><span class="log-when">Today, 8:38pm</span><span class="log-range">m5–8 · both</span><span class="log-score">81 / 79</span></li>
+          <li><span class="log-when">Yesterday, 7:02pm</span><span class="log-range">m1–4 · both</span><span class="log-score">95 / 90</span></li>
+        </ul>
+      </section>
+    </main>
+
+  </div>
+
+<script>
+  const screenSwitch = document.getElementById('screen-switch');
+  const stateSwitch = document.getElementById('state-switch');
+  const screens = {
+    library: document.getElementById('screen-library'),
+    practice: document.getElementById('screen-practice'),
+  };
+
+  function showScreen(name) {
+    for (const [key, el] of Object.entries(screens)) el.hidden = key !== name;
+    stateSwitch.style.display = name === 'practice' ? 'flex' : 'none';
+    for (const btn of screenSwitch.querySelectorAll('button')) {
+      btn.classList.toggle('is-active', btn.dataset.screen === name);
+    }
+  }
+
+  screenSwitch.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-screen]');
+    if (btn) showScreen(btn.dataset.screen);
+  });
+  document.querySelectorAll('[data-goto-practice]').forEach((el) => el.addEventListener('click', () => showScreen('practice')));
+  document.querySelectorAll('[data-goto-library]').forEach((el) => el.addEventListener('click', () => showScreen('library')));
+
+  const deck = document.getElementById('deck');
+  const metronome = document.getElementById('metronome');
+  const idleControls = document.getElementById('deck-idle-controls');
+  const statusText = document.getElementById('deck-status-text');
+  const statusWord = statusText.querySelector('.status-word');
+  const result = document.getElementById('deck-result');
+  const btnStart = document.getElementById('btn-start');
+  const btnStop = document.getElementById('btn-stop');
+  const resultActions = document.getElementById('result-actions');
+
+  const states = {
+    ready:    { idle: true,  status: false, result: false, start: true,  stop: false, live: false },
+    counting: { idle: false, status: true,  result: false, start: false, stop: true,  live: true,  word: 'Count-in…' },
+    playing:  { idle: false, status: true,  result: false, start: false, stop: true,  live: true,  word: 'Playing…' },
+    result:   { idle: false, status: false, result: true,  start: false, stop: false, live: false },
+  };
+
+  function showState(name) {
+    const s = states[name];
+    deck.dataset.state = name;
+    idleControls.hidden = !s.idle;
+    statusText.hidden = !s.status;
+    result.hidden = !s.result;
+    resultActions.hidden = !s.result;
+    btnStart.hidden = !s.start;
+    btnStop.hidden = !s.stop;
+    metronome.classList.toggle('is-live', s.live);
+    if (s.word) statusWord.textContent = s.word;
+    for (const btn of stateSwitch.querySelectorAll('button')) {
+      btn.classList.toggle('is-active', btn.dataset.state === name);
+    }
+  }
+
+  stateSwitch.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-state]');
+    if (btn) showState(btn.dataset.state);
+  });
+
+  document.getElementById('theme-toggle').addEventListener('click', (e) => {
+    const dark = document.documentElement.dataset.theme === 'dark';
+    document.documentElement.dataset.theme = dark ? '' : 'dark';
+    e.target.textContent = dark ? 'Dark mode' : 'Light mode';
+  });
+
+  // Supports opening directly into a given screen/state for review, e.g. mockup.html#practice/result/dark
+  const [hashScreen, hashState, hashTheme] = location.hash.replace('#', '').split('/');
+  showScreen(hashScreen === 'practice' ? 'practice' : 'library');
+  showState(states[hashState] ? hashState : 'ready');
+  if (hashTheme === 'dark') document.documentElement.dataset.theme = 'dark';
+</script>
+</body>
+</html>

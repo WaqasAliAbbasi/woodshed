@@ -1,9 +1,9 @@
 import type { HandFilter } from '../../lib/musicxml/buildExpectedTimeline'
 
 const OPTIONS: { value: HandFilter; label: string }[] = [
+  { value: 'left', label: 'Left hand' },
   { value: 'both', label: 'Both hands' },
   { value: 'right', label: 'Right hand' },
-  { value: 'left', label: 'Left hand' },
 ]
 
 export function HandFilterControl({

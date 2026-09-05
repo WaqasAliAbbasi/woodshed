@@ -68,8 +68,8 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
         {pieces.map((piece) => (
           <li key={piece.id} className="piece-row">
             <button type="button" className="piece-select" onClick={() => onSelect(piece)}>
-              {piece.title}
-              {piece.composer && <span className="piece-composer"> — {piece.composer}</span>}
+              <span className="piece-title">{piece.title}</span>
+              {piece.composer && <span className="piece-composer">{piece.composer}</span>}
             </button>
             <button
               type="button"

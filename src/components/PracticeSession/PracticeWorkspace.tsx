@@ -6,6 +6,7 @@ import type { Piece } from '../../lib/db/db'
 import { listSectionsForPiece } from '../../lib/db/sectionsRepo'
 import { getStaffCount, type HandFilter } from '../../lib/musicxml/buildExpectedTimeline'
 import type { MeasureRange } from '../../lib/musicxml/types'
+import type { PracticeMode } from '../../lib/scoring/types'
 import type { UseMidiInputResult } from '../InputSourceSelector/useMidiInput'
 import { ScoreViewer } from '../ScoreViewer/ScoreViewer'
 import { PracticeSession } from './PracticeSession'
@@ -36,6 +37,7 @@ export function PracticeWorkspace({
   const [anchorMeasure, setAnchorMeasure] = useState<number | undefined>(undefined)
   const [editable, setEditable] = useState(true)
   const [handFilter, setHandFilter] = useState<HandFilter>('both')
+  const [mode, setMode] = useState<PracticeMode>('metronome')
   const [staffCount, setStaffCount] = useState(1)
   const [progress, setProgress] = useState<SectionProgress[]>([])
   const [showProgress, setShowProgress] = useState(false)
@@ -118,6 +120,8 @@ export function PracticeWorkspace({
           range={range}
           handFilter={handFilter}
           onHandFilterChange={setHandFilter}
+          mode={mode}
+          onModeChange={setMode}
           staffCount={staffCount}
           onEditableChange={handleEditableChange}
           onAttemptRecorded={onAttemptRecorded}

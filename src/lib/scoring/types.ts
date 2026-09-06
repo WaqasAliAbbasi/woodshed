@@ -4,6 +4,15 @@ export type NoteClassification = 'onTime' | 'early' | 'late' | 'missed' | 'extra
 
 export type Hand = 'left' | 'right'
 
+/**
+ * 'metronome' is today's tempo-locked practice: count-in, click track, notes
+ * scored against a fixed-time expected timeline (see NoteMatcher). 'notes' is
+ * untimed reading practice: no metronome, no tempo — the passage advances
+ * only when you actually play the right note (see SequenceMatcher), so you
+ * can focus on pitch accuracy before adding tempo pressure.
+ */
+export type PracticeMode = 'metronome' | 'notes'
+
 export interface NoteResult {
   expectedMidi?: number
   expectedOnsetSec?: number

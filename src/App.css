@@ -2,7 +2,11 @@
   max-width: 640px;
   margin: 0 auto;
   padding: 1.5rem;
-  padding-bottom: 12rem;
+  /* Set from PracticeSession (see its deckRef effect) to the fixed practice
+     deck's actual rendered height, so the deck never permanently covers page
+     content below it (e.g. the practice log) no matter how tall it gets.
+     Falls back to the base 1.5rem when no deck is mounted (piece library view). */
+  padding-bottom: calc(var(--practice-deck-height, 0px) + 1.5rem);
 }
 
 .panel {
@@ -125,7 +129,7 @@
   color: var(--warning-text);
 }
 
-/* ---------- segmented controls (input source, hand filter) ---------- */
+/* ---------- segmented controls (input source, hand filter, practice mode) ---------- */
 
 .input-source-list,
 .hand-filter-control {
@@ -562,6 +566,16 @@
   margin: 0;
   font-size: 0.82rem;
   color: var(--muted);
+}
+
+.loop-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  align-self: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+  cursor: pointer;
 }
 
 .deck-actions {

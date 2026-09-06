@@ -17,7 +17,7 @@ const aggregate: AttemptAggregate = {
 
 function runFullHappyPath(): PracticeState {
   let state = initialPracticeState
-  state = practiceReducer(state, { type: 'configureSection', range, tempoBpm: 80, handFilter: 'both' })
+  state = practiceReducer(state, { type: 'configureSection', range, tempoBpm: 80, handFilter: 'both', mode: 'metronome' })
   state = practiceReducer(state, { type: 'start' })
   state = practiceReducer(state, { type: 'countInDone' })
   state = practiceReducer(state, { type: 'loopEndReached' })
@@ -47,7 +47,13 @@ describe('practiceReducer', () => {
   })
 
   it('stopping mid count-in marks the attempt aborted', () => {
-    let state = practiceReducer(initialPracticeState, { type: 'configureSection', range, tempoBpm: 80, handFilter: 'both' })
+    let state = practiceReducer(initialPracticeState, {
+      type: 'configureSection',
+      range,
+      tempoBpm: 80,
+      handFilter: 'both',
+      mode: 'metronome',
+    })
     state = practiceReducer(state, { type: 'start' })
     state = practiceReducer(state, { type: 'stop' })
     expect(state.status).toBe('AttemptScoring')
@@ -55,7 +61,13 @@ describe('practiceReducer', () => {
   })
 
   it('stopping mid attempt marks the attempt aborted', () => {
-    let state = practiceReducer(initialPracticeState, { type: 'configureSection', range, tempoBpm: 80, handFilter: 'both' })
+    let state = practiceReducer(initialPracticeState, {
+      type: 'configureSection',
+      range,
+      tempoBpm: 80,
+      handFilter: 'both',
+      mode: 'metronome',
+    })
     state = practiceReducer(state, { type: 'start' })
     state = practiceReducer(state, { type: 'countInDone' })
     state = practiceReducer(state, { type: 'stop' })
@@ -64,7 +76,13 @@ describe('practiceReducer', () => {
   })
 
   it('reaching the end of the loop naturally marks the attempt not aborted', () => {
-    let state = practiceReducer(initialPracticeState, { type: 'configureSection', range, tempoBpm: 80, handFilter: 'both' })
+    let state = practiceReducer(initialPracticeState, {
+      type: 'configureSection',
+      range,
+      tempoBpm: 80,
+      handFilter: 'both',
+      mode: 'metronome',
+    })
     state = practiceReducer(state, { type: 'start' })
     state = practiceReducer(state, { type: 'countInDone' })
     state = practiceReducer(state, { type: 'loopEndReached' })
@@ -94,10 +112,61 @@ describe('practiceReducer', () => {
     expect(state).toEqual({ status: 'PieceLoaded' })
   })
 
-  it('re-configuring the section while already configured updates range, tempo, and hand filter', () => {
-    let state = practiceReducer(initialPracticeState, { type: 'configureSection', range, tempoBpm: 80, handFilter: 'both' })
+  it('re-configuring the section while already configured updates range, tempo, hand filter, and mode', () => {
+    let state = practiceReducer(initialPracticeState, {
+      type: 'configureSection',
+      range,
+      tempoBpm: 80,
+      handFilter: 'both',
+      mode: 'metronome',
+    })
     const newRange = { startMeasure: 5, endMeasure: 8 }
-    state = practiceReducer(state, { type: 'configureSection', range: newRange, tempoBpm: 100, handFilter: 'right' })
-    expect(state).toEqual({ status: 'SectionConfigured', range: newRange, tempoBpm: 100, handFilter: 'right' })
+    state = practiceReducer(state, { type: 'configureSection', range: newRange, tempoBpm: 100, handFilter: 'right', mode: 'notes' })
+    expect(state).toEqual({ status: 'SectionConfigured', range: newRange, tempoBpm: 100, handFilter: 'right', mode: 'notes' })
+  })
+
+  describe('Notes mode', () => {
+    it('"start" skips CountingIn and goes straight to Attempting (no tempo to count in to)', () => {
+      let state = practiceReducer(initialPracticeState, {
+        type: 'configureSection',
+        range,
+        tempoBpm: 80,
+        handFilter: 'both',
+        mode: 'notes',
+      })
+      state = practiceReducer(state, { type: 'start' })
+      expect(state.status).toBe('Attempting')
+      if (state.status === 'Attempting') expect(state.mode).toBe('notes')
+    })
+
+    it('"repeat" from AttemptComplete also skips CountingIn, going straight to Attempting', () => {
+      let state = practiceReducer(initialPracticeState, {
+        type: 'configureSection',
+        range,
+        tempoBpm: 80,
+        handFilter: 'both',
+        mode: 'notes',
+      })
+      state = practiceReducer(state, { type: 'start' })
+      state = practiceReducer(state, { type: 'loopEndReached' })
+      state = practiceReducer(state, { type: 'attemptScored', aggregate })
+      expect(state.status).toBe('AttemptComplete')
+      state = practiceReducer(state, { type: 'repeat' })
+      expect(state.status).toBe('Attempting')
+    })
+
+    it('stopping mid-attempt in Notes mode still marks the attempt aborted', () => {
+      let state = practiceReducer(initialPracticeState, {
+        type: 'configureSection',
+        range,
+        tempoBpm: 80,
+        handFilter: 'both',
+        mode: 'notes',
+      })
+      state = practiceReducer(state, { type: 'start' })
+      state = practiceReducer(state, { type: 'stop' })
+      expect(state.status).toBe('AttemptScoring')
+      if (state.status === 'AttemptScoring') expect(state.aborted).toBe(true)
+    })
   })
 })

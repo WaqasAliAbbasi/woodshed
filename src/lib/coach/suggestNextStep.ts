@@ -1,4 +1,5 @@
 import type { Attempt, Section } from '../db/db'
+import type { AttemptAggregate, PracticeMode } from '../scoring/types'
 
 export interface CoachSuggestion {
   headline: string
@@ -41,6 +42,23 @@ export function classifyAccuracy(pitchAccuracy: number, timingAccuracy: number):
   if (pitchAccuracy < STRUGGLING_PITCH_ACCURACY || timingAccuracy < STRUGGLING_TIMING_ACCURACY) return 'struggling'
   if (pitchAccuracy >= READY_PITCH_ACCURACY && timingAccuracy >= READY_TIMING_ACCURACY) return 'ready'
   return 'progressing'
+}
+
+/**
+ * Whether Loop mode (see PracticeSession) should stop auto-repeating after this attempt.
+ *
+ * Metronome mode reuses classifyAccuracy, which genuinely varies with
+ * performance quality since a note must land inside a timing window to
+ * count as correct. Notes mode can't use that: SequenceMatcher requires
+ * playing the right note to advance past it, so a *completed*, unaborted
+ * attempt always has pitchAccuracy 1.0 by construction, no matter how many
+ * wrong notes were fumbled along the way (see SequenceMatcher's own docs).
+ * A fully clean pass — zero wrong-note attempts — is the one number there
+ * that actually reflects reading fluency, so that's the bar instead.
+ */
+export function isReadyToStopLooping(mode: PracticeMode, aggregate: AttemptAggregate): boolean {
+  if (mode === 'notes') return aggregate.extra === 0
+  return classifyAccuracy(aggregate.pitchAccuracy, aggregate.timingAccuracy) === 'ready'
 }
 
 /**

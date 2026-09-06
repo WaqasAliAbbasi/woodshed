@@ -2,11 +2,11 @@ import type { GraphicalNote, OpenSheetMusicDisplay } from 'opensheetmusicdisplay
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { correlateClock, getAudioContext, midiTimeStampToAudioTime, type ClockCorrelation } from '../../lib/clock/audioClock'
 import { Metronome } from '../../lib/clock/metronome'
-import { SECTION_STATUS_LABEL } from '../../lib/coach/suggestNextStep'
+import { isReadyToStopLooping, SECTION_STATUS_LABEL } from '../../lib/coach/suggestNextStep'
 import type { SectionProgress } from '../../lib/coach/pieceProgress'
 import { recordAttempt } from '../../lib/db/attemptsRepo'
 import type { Piece } from '../../lib/db/db'
-import { HAND_LABEL, resolveSection } from '../../lib/db/resolveSection'
+import { HAND_LABEL, MODE_LABEL, resolveSection } from '../../lib/db/resolveSection'
 import {
   advanceCursorToMeasure,
   buildExpectedTimeline,
@@ -18,16 +18,21 @@ import {
 } from '../../lib/musicxml/buildExpectedTimeline'
 import type { ExpectedChordEvent, MeasureRange } from '../../lib/musicxml/types'
 import { ACCEPT_MS, NoteMatcher } from '../../lib/scoring/matcher'
+import { SequenceMatcher } from '../../lib/scoring/sequenceMatcher'
+import type { PracticeMode } from '../../lib/scoring/types'
 import { CORRECT_COLOR, WRONG_COLOR, getDefaultMusicColor } from '../../lib/theme'
 import type { MidiNoteEvent } from '../../lib/midi/midiEvents'
 import { HandFilterControl } from '../HandFilterControl/HandFilterControl'
 import type { UseMidiInputResult } from '../InputSourceSelector/useMidiInput'
+import { PracticeModeControl } from '../PracticeModeControl/PracticeModeControl'
 import { TempoControl } from '../TempoControl/TempoControl'
 import { initialPracticeState, practiceReducer } from './practiceMachine'
 
 const COUNT_IN_MEASURES = 1
 const LOOP_END_GRACE_SEC = 0.5
 const LEAD_IN_SEC = 0.15
+/** Pause after an attempt finishes before Loop mode auto-repeats — long enough to glance at the result, short enough to keep drilling. */
+const LOOP_REPEAT_DELAY_MS = 1500
 
 export function PracticeSession({
   osmd,
@@ -36,6 +41,8 @@ export function PracticeSession({
   range,
   handFilter,
   onHandFilterChange,
+  mode,
+  onModeChange,
   staffCount,
   onEditableChange,
   onAttemptRecorded,
@@ -47,6 +54,8 @@ export function PracticeSession({
   range: MeasureRange
   handFilter: HandFilter
   onHandFilterChange: (handFilter: HandFilter) => void
+  mode: PracticeMode
+  onModeChange: (mode: PracticeMode) => void
   /** Pieces with only one staff have nothing to isolate — the hand picker is hidden in that case. */
   staffCount: number
   onEditableChange: (editable: boolean) => void
@@ -63,9 +72,11 @@ export function PracticeSession({
   const [state, dispatch] = useReducer(practiceReducer, initialPracticeState)
   const [currentBeat, setCurrentBeat] = useState(0)
   const [beatsPerMeasure, setBeatsPerMeasure] = useState(4)
+  const [loopEnabled, setLoopEnabled] = useState(false)
 
   const sectionIdRef = useRef<string | undefined>(undefined)
   const matcherRef = useRef<NoteMatcher | undefined>(undefined)
+  const sequenceMatcherRef = useRef<SequenceMatcher | undefined>(undefined)
   const correlationRef = useRef<ClockCorrelation | undefined>(undefined)
   const loopStartTimeSecRef = useRef<number | undefined>(undefined)
   const eventsRef = useRef<ExpectedChordEvent[]>([])
@@ -75,13 +86,34 @@ export function PracticeSession({
   const lastShownMeasureRef = useRef<number | undefined>(undefined)
   /** Notes colored green/red this attempt — reset to black at the start of the next one. */
   const coloredNotesRef = useRef<GraphicalNote[]>([])
+  const deckRef = useRef<HTMLDivElement>(null)
 
   const editable = state.status === 'PieceLoaded' || state.status === 'SectionConfigured'
 
-  // Keep the reducer's copy of range/tempo/hand-filter in sync while the user can still edit them.
+  // The fixed deck's height varies with practice state (idle controls, result
+  // stats, the loop toggle — plus wrapping on narrow screens), so a fixed
+  // page bottom-padding guess drifts out of sync and lets the deck cover
+  // page content like the practice log. Measure it and feed it back as a CSS
+  // var that .app's padding-bottom is built from instead (see App.css).
   useEffect(() => {
-    if (editable) dispatch({ type: 'configureSection', range, tempoBpm, handFilter })
-  }, [range, tempoBpm, handFilter, editable])
+    const deck = deckRef.current
+    if (!deck) return
+    const setHeightVar = () => {
+      document.documentElement.style.setProperty('--practice-deck-height', `${deck.offsetHeight}px`)
+    }
+    setHeightVar()
+    const observer = new ResizeObserver(setHeightVar)
+    observer.observe(deck)
+    return () => {
+      observer.disconnect()
+      document.documentElement.style.removeProperty('--practice-deck-height')
+    }
+  }, [])
+
+  // Keep the reducer's copy of range/tempo/hand-filter/mode in sync while the user can still edit them.
+  useEffect(() => {
+    if (editable) dispatch({ type: 'configureSection', range, tempoBpm, handFilter, mode })
+  }, [range, tempoBpm, handFilter, mode, editable])
 
   // Feed MIDI note-on events into the active matcher only while actually attempting.
   useEffect(() => {
@@ -89,8 +121,42 @@ export function PracticeSession({
       midi.setNoteHandler(() => {})
       return
     }
+    const mode = state.mode
+
     midi.setNoteHandler((event: MidiNoteEvent) => {
       if (event.type !== 'noteOn') return
+
+      if (mode === 'notes') {
+        const sequenceMatcher = sequenceMatcherRef.current
+        if (!sequenceMatcher) return
+        const result = sequenceMatcher.noteOn(event.note, event.velocity)
+
+        if (result.classification === 'extra') {
+          // Wrong note: flash what's actually expected right now so it's clear what to try instead — see SequenceMatcher's drill-style design (must play it correctly to advance).
+          for (const graphicalNote of sequenceMatcher.currentRemainingGraphicalNotes) {
+            graphicalNote.setColor(WRONG_COLOR, { applyToNoteheads: true })
+            coloredNotesRef.current.push(graphicalNote)
+          }
+          return
+        }
+
+        if (result.graphicalNote) {
+          result.graphicalNote.setColor(CORRECT_COLOR, { applyToNoteheads: true })
+          coloredNotesRef.current.push(result.graphicalNote)
+        }
+
+        if (sequenceMatcher.isComplete) {
+          dispatch({ type: 'loopEndReached' })
+          return
+        }
+        const measureNumber = sequenceMatcher.currentChord?.measureNumber
+        if (measureNumber !== undefined && measureNumber !== lastShownMeasureRef.current) {
+          advanceCursorToMeasure(osmd, measureNumber)
+          lastShownMeasureRef.current = measureNumber
+        }
+        return
+      }
+
       const matcher = matcherRef.current
       const correlation = correlationRef.current
       const loopStartTimeSec = loopStartTimeSecRef.current
@@ -103,11 +169,13 @@ export function PracticeSession({
       }
     })
     return () => midi.setNoteHandler(() => {})
-  }, [state.status, midi])
+  }, [state.status, midi, osmd]) // eslint-disable-line react-hooks/exhaustive-deps -- fires once on entering Attempting; mode/range are frozen by the reducer until AttemptComplete
 
-  // CountingIn + Attempting: one continuous metronome (audible click + beat
-  // indicator) spanning both phases — it used to stop right as playing
-  // began, which is why there was silence during the actual attempt.
+  // CountingIn + Attempting, Metronome mode only: one continuous metronome
+  // (audible click + beat indicator) spanning both phases — it used to stop
+  // right as playing began, which is why there was silence during the
+  // actual attempt. Notes mode has no tempo to click against — see the
+  // separate effect below for its (much simpler) setup.
   //
   // The expected timeline/matcher are also built here, at CountingIn's
   // start, rather than waiting for Attempting to begin: if the user hits
@@ -119,6 +187,7 @@ export function PracticeSession({
   // forever with no matcher to work with).
   useEffect(() => {
     if (state.status !== 'CountingIn' && state.status !== 'Attempting') return
+    if (state.mode !== 'metronome') return
     attemptStartWallClockRef.current = Date.now()
     const audioContext = getAudioContext()
     void audioContext.resume()
@@ -147,13 +216,41 @@ export function PracticeSession({
       }
     })
     return () => metronome.stop()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires once per running phase (CountingIn through Attempting); range/tempo are frozen by the reducer until AttemptComplete
-  }, [state.status === 'CountingIn' || state.status === 'Attempting', osmd])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires once per running phase (CountingIn through Attempting); range/tempo/mode are frozen by the reducer until AttemptComplete
+  }, [(state.status === 'CountingIn' || state.status === 'Attempting') && state.mode === 'metronome', osmd])
 
-  // Attempting: drive the live matcher's clock (missed-note sweeps) and measure-level cursor sync.
-  // The timeline/matcher themselves are already built (see the effect above).
+  // Attempting, Notes mode only: build the sequence matcher and show the
+  // cursor at the start of the range. No count-in, no clock — the passage
+  // only advances when the right note is actually played (see the MIDI
+  // note-on effect above and SequenceMatcher).
   useEffect(() => {
     if (state.status !== 'Attempting') return
+    if (state.mode !== 'notes') return
+    attemptStartWallClockRef.current = Date.now()
+
+    for (const note of coloredNotesRef.current) {
+      note.setColor(getDefaultMusicColor(), { applyToNoteheads: true })
+    }
+    coloredNotesRef.current = []
+    const events = buildExpectedTimeline(osmd, state.range, state.tempoBpm, state.handFilter)
+    eventsRef.current = events
+    sequenceMatcherRef.current = new SequenceMatcher(events)
+    lastShownMeasureRef.current = state.range.startMeasure
+
+    advanceCursorToMeasure(osmd, state.range.startMeasure)
+    osmd.cursor.show()
+    return () => osmd.cursor.hide()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires once on entering Attempting in Notes mode; range/hand are frozen by the reducer until AttemptComplete
+  }, [state.status === 'Attempting' && state.mode === 'notes', osmd])
+
+  // Attempting, Metronome mode only: drive the live matcher's clock
+  // (missed-note sweeps) and measure-level cursor sync. The timeline/matcher
+  // themselves are already built (see the effect above). Notes mode needs
+  // none of this — its cursor/completion are driven synchronously by each
+  // note played, in the MIDI note-on effect above.
+  useEffect(() => {
+    if (state.status !== 'Attempting') return
+    if (state.mode !== 'metronome') return
     const audioContext = getAudioContext()
     const events = eventsRef.current
 
@@ -195,19 +292,19 @@ export function PracticeSession({
       if (rafRef.current !== undefined) cancelAnimationFrame(rafRef.current)
       osmd.cursor.hide()
     }
-  }, [state.status, osmd]) // eslint-disable-line react-hooks/exhaustive-deps -- fires once on entering Attempting; range/tempo are frozen by the reducer until AttemptComplete
+  }, [state.status, osmd]) // eslint-disable-line react-hooks/exhaustive-deps -- fires once on entering Attempting; range/tempo/mode are frozen by the reducer until AttemptComplete
 
-  // AttemptScoring: finalize the matcher, persist the attempt, hand off to AttemptComplete.
+  // AttemptScoring: finalize whichever matcher this attempt used, persist the attempt, hand off to AttemptComplete.
   useEffect(() => {
     if (state.status !== 'AttemptScoring') return
-    const matcher = matcherRef.current
+    const activeMatcher = state.mode === 'notes' ? sequenceMatcherRef.current : matcherRef.current
     const sectionId = sectionIdRef.current
-    if (!matcher || !sectionId) return
-    const { aggregate, noteResults } = matcher.finalize()
+    if (!activeMatcher || !sectionId) return
+    const { aggregate, noteResults } = activeMatcher.finalize()
 
-    // Safety-net coloring pass: covers notes the live tick loop didn't get
-    // to (e.g. the attempt was stopped early, before sweepMissed caught
-    // everything). Harmless to redundantly recolor notes already colored live.
+    // Safety-net coloring pass: covers notes the live tick loop/note handler
+    // didn't get to (e.g. the attempt was stopped early). Harmless to
+    // redundantly recolor notes already colored live.
     for (const result of noteResults) {
       if (result.graphicalNote) {
         result.graphicalNote.setColor(result.classification === 'missed' ? WRONG_COLOR : CORRECT_COLOR, {
@@ -233,10 +330,29 @@ export function PracticeSession({
     })
   }, [state.status, piece.id, onAttemptRecorded]) // eslint-disable-line react-hooks/exhaustive-deps -- fires once on entering AttemptScoring, closing over that render's state
 
+  // Loop mode: auto-repeat until the section is ready to stop (see
+  // isReadyToStopLooping) or the user stops it. Stopping an attempt early
+  // (aborted) is treated as "I want out" and turns the loop off rather than
+  // immediately restarting, since that's the only way to interrupt a loop.
+  useEffect(() => {
+    if (!loopEnabled || state.status !== 'AttemptComplete') return
+    if (state.aborted) {
+      setLoopEnabled(false)
+      return
+    }
+    if (state.aggregate.expected === 0) return // nothing playable in this range/hand combo — nothing to loop toward
+    if (isReadyToStopLooping(state.mode, state.aggregate)) {
+      setLoopEnabled(false)
+      return
+    }
+    const timeout = setTimeout(() => dispatch({ type: 'repeat' }), LOOP_REPEAT_DELAY_MS)
+    return () => clearTimeout(timeout)
+  }, [state, loopEnabled])
+
   const handleStart = async () => {
     if (state.status !== 'SectionConfigured') return
     onEditableChange(false)
-    const section = await resolveSection(piece.id, state.range, state.tempoBpm, state.handFilter)
+    const section = await resolveSection(piece.id, state.range, state.tempoBpm, state.handFilter, state.mode)
     sectionIdRef.current = section.id
     dispatch({ type: 'start' })
   }
@@ -267,30 +383,37 @@ export function PracticeSession({
   const leftBalancePct = handBalance
     ? Math.round((100 * handBalance.leftAvgVelocity) / (handBalance.leftAvgVelocity + handBalance.rightAvgVelocity))
     : 0
+  const showLoopToggle = state.status === 'SectionConfigured' || state.status === 'AttemptComplete'
 
   return (
     <div className="practice-session">
       <div className="practice-action-bar">
-        <div className="deck">
+        <div className="deck" ref={deckRef}>
           <div className="deck-row">
             <span className="practice-section-label">
               Measures {range.startMeasure}–{range.endMeasure}
               {HAND_LABEL[handFilter]}
+              {MODE_LABEL[mode]}
             </span>
-            <div className={`metronome${isLive ? ' metronome-live' : ''}`}>
-              <div className="metronome-base" />
-              <div className="metronome-needle" style={{ transform: `rotate(${needleAngle}deg)` }} />
-              <div className="metronome-ticks">
-                {Array.from({ length: beatsPerMeasure }, (_, i) => (
-                  <span key={i} className={`metronome-tick${isLive && i === currentBeat ? ' metronome-tick-active' : ''}`} />
-                ))}
+            {mode === 'metronome' && (
+              <div className={`metronome${isLive ? ' metronome-live' : ''}`}>
+                <div className="metronome-base" />
+                <div className="metronome-needle" style={{ transform: `rotate(${needleAngle}deg)` }} />
+                <div className="metronome-ticks">
+                  {Array.from({ length: beatsPerMeasure }, (_, i) => (
+                    <span key={i} className={`metronome-tick${isLive && i === currentBeat ? ' metronome-tick-active' : ''}`} />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {editable && (
             <div className="deck-row deck-idle-controls">
-              <TempoControl tempoBpm={tempoBpm} onChange={setTempoBpm} disabled={!editable} presets={tempoPresets} />
+              {mode === 'metronome' && (
+                <TempoControl tempoBpm={tempoBpm} onChange={setTempoBpm} disabled={!editable} presets={tempoPresets} />
+              )}
+              <PracticeModeControl mode={mode} onChange={onModeChange} disabled={!editable} />
               {staffCount > 1 && (
                 <HandFilterControl handFilter={handFilter} onChange={onHandFilterChange} disabled={!editable} />
               )}
@@ -299,7 +422,10 @@ export function PracticeSession({
 
           {isLive && (
             <div className="deck-row deck-status-text">
-              <span className="status-word">{state.status === 'CountingIn' ? 'Count-in…' : 'Playing…'}</span>
+              <span className="status-word">
+                {state.status === 'CountingIn' ? 'Count-in…' : 'Playing…'}
+                {loopEnabled && ' · Looping'}
+              </span>
             </div>
           )}
 
@@ -320,13 +446,15 @@ export function PracticeSession({
                       <span style={{ width: `${Math.round(state.aggregate.pitchAccuracy * 100)}%` }} />
                     </span>
                   </div>
-                  <div className="stat">
-                    <span className="stat-label">Timing</span>
-                    <span className="stat-value">{Math.round(state.aggregate.timingAccuracy * 100)}%</span>
-                    <span className="stat-bar stat-bar-timing">
-                      <span style={{ width: `${Math.round(state.aggregate.timingAccuracy * 100)}%` }} />
-                    </span>
-                  </div>
+                  {mode === 'metronome' && (
+                    <div className="stat">
+                      <span className="stat-label">Timing</span>
+                      <span className="stat-value">{Math.round(state.aggregate.timingAccuracy * 100)}%</span>
+                      <span className="stat-bar stat-bar-timing">
+                        <span style={{ width: `${Math.round(state.aggregate.timingAccuracy * 100)}%` }} />
+                      </span>
+                    </div>
+                  )}
                   {handBalance && (
                     <div className="stat">
                       <span className="stat-label">Balance</span>
@@ -342,12 +470,24 @@ export function PracticeSession({
                   {sectionStatus && <div className={`stamp stamp-${sectionStatus}`}>{SECTION_STATUS_LABEL[sectionStatus]}</div>}
                   <p className="tally">
                     {state.aggregate.correct}/{state.aggregate.expected} notes · {state.aggregate.missed} missed ·{' '}
-                    {state.aggregate.extra} wrong · {state.aggregate.onTime} on / {state.aggregate.early} early /{' '}
-                    {state.aggregate.late} late
+                    {state.aggregate.extra} wrong
+                    {mode === 'metronome' && (
+                      <>
+                        {' '}
+                        · {state.aggregate.onTime} on / {state.aggregate.early} early / {state.aggregate.late} late
+                      </>
+                    )}
                   </p>
                 </>
               )}
             </div>
+          )}
+
+          {showLoopToggle && (
+            <label className="loop-toggle">
+              <input type="checkbox" checked={loopEnabled} onChange={(e) => setLoopEnabled(e.target.checked)} />
+              Loop until ready
+            </label>
           )}
 
           <div className="deck-row deck-actions">

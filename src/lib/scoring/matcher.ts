@@ -1,33 +1,17 @@
-import type { GraphicalNote } from 'opensheetmusicdisplay'
 import type { ExpectedChordEvent } from '../musicxml/types'
 import { aggregate } from './aggregate'
-import type { AttemptAggregate, Hand, NoteResult } from './types'
+import { toMultiset, type RemainingNote } from './noteMultiset'
+import type { AttemptAggregate, NoteResult } from './types'
 
 /** Within this many ms of the expected onset, timing counts as "on time". */
 export const ON_TIME_MS = 60
 /** Beyond this many ms from the expected onset, a pitch match doesn't count as being "for" that event at all. */
 export const ACCEPT_MS = 180
 
-interface RemainingNote {
-  graphicalNote: GraphicalNote
-  hand: Hand
-}
-
 interface OpenEvent {
   onsetSec: number
   measureNumber: number
-  /** midi note number -> stack of unmatched notes for that pitch (a chord can double a pitch across voices/hands). */
   remaining: Map<number, RemainingNote[]>
-}
-
-function toMultiset(midiNumbers: number[], graphicalNotes: GraphicalNote[], hands: Hand[]): Map<number, RemainingNote[]> {
-  const map = new Map<number, RemainingNote[]>()
-  midiNumbers.forEach((midi, i) => {
-    const stack = map.get(midi) ?? []
-    stack.push({ graphicalNote: graphicalNotes[i], hand: hands[i] })
-    map.set(midi, stack)
-  })
-  return map
 }
 
 /**

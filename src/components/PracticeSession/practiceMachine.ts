@@ -32,7 +32,8 @@ export type PracticeEvent =
   | { type: 'loopEndReached' }
   | { type: 'stop' }
   | { type: 'attemptScored'; aggregate: AttemptAggregate }
-  | { type: 'repeat' }
+  /** `tempoBpm`, when given, overrides the just-completed attempt's tempo — Loop mode's speed-trainer step-up (see PracticeSession) bumping to the next preset on a passing rep. Omitted for a same-tempo repeat (failing rep, or the user's own "repeat" action). */
+  | { type: 'repeat'; tempoBpm?: number }
   | { type: 'adjust' }
   | { type: 'done' }
 
@@ -144,7 +145,7 @@ export function practiceReducer(state: PracticeState, event: PracticeEvent): Pra
 
     case 'AttemptComplete':
       if (event.type === 'repeat') {
-        return startingState(state.range, state.tempoBpm, state.handFilter, state.mode)
+        return startingState(state.range, event.tempoBpm ?? state.tempoBpm, state.handFilter, state.mode)
       }
       if (event.type === 'adjust') {
         return {

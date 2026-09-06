@@ -9,10 +9,11 @@ function formatAccuracy(attempt: SectionProgress['latest']): string {
 }
 
 /**
- * One row per practiced section, ranked struggling-first — the practice
- * priority queue that HistoryView's single coach suggestion doesn't cover
- * (that one only ever looks at the most-recently-attempted section, not the
- * whole piece). See `summarizeSectionProgress`.
+ * One row per practiced section, ranked struggling-first — the full practice
+ * priority queue as a table. HistoryView's coach suggestion is built from the
+ * same queue (see `suggestNextStep`) but only ever surfaces the top pick (plus
+ * a couple more by label as "also queued"); this is the whole thing, for
+ * scanning every section's status at a glance. See `summarizeSectionProgress`.
  */
 export function PieceProgress({ pieceId, refreshKey }: { pieceId: string; refreshKey: number }) {
   const [loaded, setLoaded] = useState<{ pieceId: string; summaries: SectionProgress[] } | undefined>(undefined)

@@ -3,6 +3,7 @@ import { deleteAttempt, listAttemptsForPiece } from '../../lib/db/attemptsRepo'
 import { listSectionsForPiece } from '../../lib/db/sectionsRepo'
 import type { Attempt, Section } from '../../lib/db/db'
 import { suggestNextStep } from '../../lib/coach/suggestNextStep'
+import { summarizeSectionProgress } from '../../lib/coach/pieceProgress'
 
 export function HistoryView({ pieceId, refreshKey }: { pieceId: string; refreshKey: number }) {
   const [loaded, setLoaded] = useState<
@@ -46,13 +47,18 @@ export function HistoryView({ pieceId, refreshKey }: { pieceId: string; refreshK
   // actually has history, on every piece switch.
   if (!loaded || loaded.pieceId !== pieceId) return null
 
-  const suggestion = suggestNextStep(Array.from(sectionById!.values()), attempts)
+  const progress = summarizeSectionProgress(Array.from(sectionById!.values()), attempts)
+  const suggestion = suggestNextStep(progress, attempts)
 
   return (
     <>
       <div className="coach-suggestion">
+        {suggestion.sessionNote && <p className="coach-session-note">{suggestion.sessionNote}</p>}
         <p className="coach-headline">{suggestion.headline}</p>
         {suggestion.detail && <p className="coach-detail">{suggestion.detail}</p>}
+        {suggestion.alsoQueued && suggestion.alsoQueued.length > 0 && (
+          <p className="coach-queue">Also due: {suggestion.alsoQueued.join(', ')}</p>
+        )}
       </div>
 
       {attempts.length === 0 ? (

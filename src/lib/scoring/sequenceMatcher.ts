@@ -50,7 +50,7 @@ export class SequenceMatcher {
   noteOn(midi: number, velocity?: number): NoteResult {
     const remainingForPitch = this.remaining.get(midi)
     if (!remainingForPitch || remainingForPitch.length === 0) {
-      const result: NoteResult = { actualMidi: midi, classification: 'extra', velocity }
+      const result: NoteResult = { actualMidi: midi, classification: 'extra', velocity, measureNumber: this.currentChord?.measureNumber }
       this.results.push(result)
       return result
     }
@@ -65,6 +65,7 @@ export class SequenceMatcher {
       velocity,
       hand: popped.hand,
       graphicalNote: popped.graphicalNote,
+      measureNumber: this.currentChord?.measureNumber,
     }
     this.results.push(result)
 
@@ -79,15 +80,17 @@ export class SequenceMatcher {
   /** Ends the attempt: the current chord's unplayed notes (if stopped partway through one) plus every chord after it count as missed. */
   finalize(): { aggregate: AttemptAggregate; noteResults: NoteResult[] } {
     if (!this.finalized) {
+      const currentMeasureNumber = this.currentChord?.measureNumber
       for (const [midi, notes] of this.remaining) {
         for (const { graphicalNote, hand } of notes) {
-          this.results.push({ expectedMidi: midi, classification: 'missed', graphicalNote, hand })
+          this.results.push({ expectedMidi: midi, classification: 'missed', graphicalNote, hand, measureNumber: currentMeasureNumber })
         }
       }
       for (let i = this.chordIndex + 1; i < this.events.length; i++) {
+        const measureNumber = this.events[i].measureNumber
         for (const [midi, notes] of this.multisetFor(i)) {
           for (const { graphicalNote, hand } of notes) {
-            this.results.push({ expectedMidi: midi, classification: 'missed', graphicalNote, hand })
+            this.results.push({ expectedMidi: midi, classification: 'missed', graphicalNote, hand, measureNumber })
           }
         }
       }

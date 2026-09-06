@@ -1,5 +1,5 @@
 import type { Attempt, Section } from '../db/db'
-import { classifyAccuracy, type SectionStatus } from './suggestNextStep'
+import { classifyAccuracy, timingQuality, type SectionStatus } from './suggestNextStep'
 
 export interface SectionProgress {
   section: Section
@@ -17,12 +17,12 @@ function combinedScore(attempt: Attempt): number {
 }
 
 /**
- * Rolls up every attempt into one row per practiced section — the
- * whole-piece counterpart to `suggestNextStep`, which only ever looks at the
- * single most-recently-attempted section. Sections with no attempts yet
- * (created but never actually played, which shouldn't normally happen since
- * `resolveSection` only runs when an attempt starts) are omitted rather than
- * shown as an empty row.
+ * Rolls up every attempt into one row per practiced section, struggling-first
+ * — the practice priority queue `suggestNextStep` now builds its suggestion
+ * from directly, instead of looking only at whichever section was attempted
+ * most recently. Sections with no attempts yet (created but never actually
+ * played, which shouldn't normally happen since `resolveSection` only runs
+ * when an attempt starts) are omitted rather than shown as an empty row.
  */
 export function summarizeSectionProgress(sections: Section[], attempts: Attempt[]): SectionProgress[] {
   const attemptsBySection = new Map<string, Attempt[]>()
@@ -45,7 +45,7 @@ export function summarizeSectionProgress(sections: Section[], attempts: Attempt[
       attemptCount: sectionAttempts.length,
       latest,
       best,
-      status: classifyAccuracy(latest.aggregate.pitchAccuracy, latest.aggregate.timingAccuracy),
+      status: classifyAccuracy(latest.aggregate.pitchAccuracy, timingQuality(latest.aggregate)),
     })
   }
 

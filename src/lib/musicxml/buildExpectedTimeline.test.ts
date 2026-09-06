@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NoteMatcher } from '../scoring/matcher'
 import {
   buildExpectedTimeline,
@@ -9,9 +9,11 @@ import {
   getDefaultTempoBpm,
   getStaffCount,
   getTempoPresets,
+  scrollCursorIntoView,
 } from './buildExpectedTimeline'
 import { loadScore } from './loadScore'
 import type { ExpectedChordEvent } from './types'
+import type { OpenSheetMusicDisplay } from 'opensheetmusicdisplay'
 
 // Real-world fixture: Clementi's Sonatina Op. 36 No. 1 (from OSMD's own test
 // suite), encoded as two separate MusicXML <part>s (right hand / left hand)
@@ -336,5 +338,51 @@ describe('getTempoPresets', () => {
         expect(preset).toBeLessThanOrEqual(240)
       }
     }
+  })
+})
+
+describe('scrollCursorIntoView', () => {
+  function fakeOsmd(rect: Partial<DOMRect>): OpenSheetMusicDisplay {
+    return {
+      cursor: {
+        cursorElement: { getBoundingClientRect: () => rect as DOMRect } as unknown as HTMLImageElement,
+      },
+    } as unknown as OpenSheetMusicDisplay
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal('scrollBy', vi.fn())
+    Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true })
+    document.documentElement.style.setProperty('--practice-deck-height', '200px')
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    document.documentElement.style.removeProperty('--practice-deck-height')
+  })
+
+  it('does not scroll when the cursor is already comfortably visible above the deck', () => {
+    // usable area is 0-600 (800 viewport - 200 deck); well within margins
+    scrollCursorIntoView(fakeOsmd({ top: 100, bottom: 140 } as DOMRect))
+    expect(window.scrollBy).not.toHaveBeenCalled()
+  })
+
+  it('scrolls up when the cursor is hidden under the fixed practice deck', () => {
+    scrollCursorIntoView(fakeOsmd({ top: 580, bottom: 620 } as DOMRect))
+    expect(window.scrollBy).toHaveBeenCalledTimes(1)
+    const arg = (window.scrollBy as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(arg.top).toBeGreaterThan(0) // scroll the page down to move the cursor up out from under the deck
+  })
+
+  it('scrolls when the cursor is above the top edge', () => {
+    scrollCursorIntoView(fakeOsmd({ top: -50, bottom: -10 } as DOMRect))
+    expect(window.scrollBy).toHaveBeenCalledTimes(1)
+    const arg = (window.scrollBy as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(arg.top).toBeLessThan(0) // scroll the page up to bring the cursor down into view
+  })
+
+  it('does nothing when there is no cursor element yet', () => {
+    scrollCursorIntoView({ cursor: {} } as unknown as OpenSheetMusicDisplay)
+    expect(window.scrollBy).not.toHaveBeenCalled()
   })
 })

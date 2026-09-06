@@ -20,6 +20,15 @@ export interface NoteResult {
   actualTimeSec?: number
   classification: NoteClassification
   deltaMs?: number
+  /**
+   * The measure this result ties back to, for aggregating per-measure/
+   * per-note history back onto the score. Present whenever this result ties
+   * to an expected note or a known cursor position; for SequenceMatcher's
+   * 'extra' (wrong-note) results it's the chord currently being waited on,
+   * since that matcher always has a cursor. NoteMatcher's 'extra' results
+   * have no cursor concept to attribute to and leave this undefined.
+   */
+  measureNumber?: number
   /** MIDI velocity (0-127) of the actual note-on. Present whenever a note was actually played (onTime/early/late/extra); absent for missed (never played). */
   velocity?: number
   /** Which hand's expected note this was, by staff position (see buildExpectedTimeline's noteHand). Present whenever this result ties to an expected note (onTime/early/late/missed); absent for extra (no expected note to attribute a hand to). */
@@ -55,8 +64,23 @@ export interface AttemptAggregate {
   late: number
   /** correct / expected. 0 when nothing was expected. */
   pitchAccuracy: number
-  /** onTime / correct. 0 when nothing was matched correctly. */
+  /**
+   * onTime / expected. 0 when nothing was expected. The honest headline
+   * figure: how many of the notes that were actually expected landed on
+   * time. Low when few notes were played at all, even if the ones that were
+   * played were well-timed — see `timingAccuracyOfCorrect` for that isolated
+   * "how tight is your rhythm" signal.
+   */
   timingAccuracy: number
+  /**
+   * onTime / correct. 0 when nothing was matched correctly. Rhythm quality
+   * isolated from pitch accuracy — "of the notes you got right, how many
+   * were on time" — which is what the coach's struggling/ready thresholds
+   * are tuned against (see suggestNextStep.ts). Optional because attempts
+   * persisted before this field existed only carry the combined
+   * `timingAccuracy` figure, which held this exact semantic at the time.
+   */
+  timingAccuracyOfCorrect?: number
   /** Undefined when there's nothing to compare — hands-separate practice, a single-staff piece, or no velocity data (e.g. virtual keyboard, which sends a fixed velocity). */
   handBalance?: HandBalance
 }

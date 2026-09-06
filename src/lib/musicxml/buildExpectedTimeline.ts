@@ -187,6 +187,32 @@ export function advanceCursorToMeasure(osmd: OpenSheetMusicDisplay, measureNumbe
   cursor.update()
 }
 
+/** Cursor kept clear of the top edge and of the fixed practice deck by at least this many px before a scroll is triggered. */
+const CURSOR_SCROLL_MARGIN_PX = 32
+
+/**
+ * Scrolls the page just enough to bring OSMD's cursor back into the
+ * comfortable viewing band, without fighting a user who has manually
+ * scrolled but kept the cursor visible. No-ops if the cursor is already
+ * clear of the top edge and of the fixed practice deck (whose live height
+ * is published as the `--practice-deck-height` CSS var — see App.css);
+ * otherwise scrolls it to the upper third of the space above the deck,
+ * rather than snapping it to the very bottom edge.
+ */
+export function scrollCursorIntoView(osmd: OpenSheetMusicDisplay): void {
+  const cursorElement = osmd.cursor.cursorElement
+  if (!cursorElement || typeof cursorElement.getBoundingClientRect !== 'function') return
+
+  const deckHeightPx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--practice-deck-height')) || 0
+  const usableBottom = window.innerHeight - deckHeightPx
+  const rect = cursorElement.getBoundingClientRect()
+
+  if (rect.top >= CURSOR_SCROLL_MARGIN_PX && rect.bottom <= usableBottom - CURSOR_SCROLL_MARGIN_PX) return
+
+  const targetTop = usableBottom / 3
+  window.scrollBy({ top: rect.top - targetTop, behavior: 'smooth' })
+}
+
 /**
  * Walks the score's cursor across `range` and produces the sequence of
  * expected chord onsets at `tempoBpm`, relative to the start of the range

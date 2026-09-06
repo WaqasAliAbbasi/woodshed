@@ -22,7 +22,8 @@ export interface LoadedScore {
  * clears the container first — it just draws its own SVG into it — so both
  * copies end up stacked in the DOM.
  */
-export async function loadScore(container: HTMLElement, musicXml: string, signal?: AbortSignal): Promise<LoadedScore> {
+/** `autoResize` stays off — reflow is driven explicitly by a ResizeObserver in useOSMD instead, so callers control exactly when a re-render (and the GraphicalNote churn that comes with one) happens. */
+export async function loadScore(container: HTMLElement, musicXml: string, signal?: AbortSignal, zoom?: number): Promise<LoadedScore> {
   const osmd = new OpenSheetMusicDisplay(container, {
     autoResize: false,
     backend: 'svg',
@@ -36,6 +37,7 @@ export async function loadScore(container: HTMLElement, musicXml: string, signal
   if (signal?.aborted) {
     throw new DOMException('loadScore aborted', 'AbortError')
   }
+  if (zoom !== undefined) osmd.Zoom = zoom
   osmd.render()
   const measureCount = osmd.Sheet.SourceMeasures.length
   return { osmd, measureCount }

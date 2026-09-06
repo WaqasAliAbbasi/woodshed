@@ -7,7 +7,7 @@ function mockGraphicalNote(label: string): GraphicalNote {
   return { label } as unknown as GraphicalNote
 }
 
-function chord(midiNumbers: number[], hands?: ('left' | 'right')[]): ExpectedChordEvent {
+function chord(midiNumbers: number[], hands?: ('left' | 'right')[], measureNumber = 1): ExpectedChordEvent {
   const graphicalNotes = midiNumbers.map((midi, i) => mockGraphicalNote(`m${midi}#${i}`))
   return {
     onsetSec: 0,
@@ -15,7 +15,7 @@ function chord(midiNumbers: number[], hands?: ('left' | 'right')[]): ExpectedCho
     midiNumbers,
     graphicalNotes,
     hands: hands ?? midiNumbers.map(() => 'right'),
-    measureNumber: 1,
+    measureNumber,
   }
 }
 
@@ -115,5 +115,22 @@ describe('SequenceMatcher', () => {
     expect(aggregate.correct).toBe(1)
     expect(aggregate.extra).toBe(2)
     expect(aggregate.pitchAccuracy).toBe(1)
+  })
+
+  it('tags each result with the measure of the chord it ties to', () => {
+    const matcher = new SequenceMatcher([chord([60], undefined, 1), chord([64], undefined, 2)])
+    const wrong = matcher.noteOn(99) // extra, attributed to the current (measure 1) cursor
+    const first = matcher.noteOn(60) // measure 1
+    const second = matcher.noteOn(64) // measure 2
+    expect(wrong.measureNumber).toBe(1)
+    expect(first.measureNumber).toBe(1)
+    expect(second.measureNumber).toBe(2)
+  })
+
+  it('tags missed notes at finalize with their own chord measure, not the cursor measure', () => {
+    const matcher = new SequenceMatcher([chord([60], undefined, 1), chord([64], undefined, 5)])
+    const { noteResults } = matcher.finalize() // nothing played -> both chords missed
+    expect(noteResults.find((r) => r.expectedMidi === 60)?.measureNumber).toBe(1)
+    expect(noteResults.find((r) => r.expectedMidi === 64)?.measureNumber).toBe(5)
   })
 })

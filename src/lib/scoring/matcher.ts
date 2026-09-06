@@ -81,6 +81,7 @@ export class NoteMatcher {
         velocity,
         hand: popped?.hand,
         graphicalNote: popped?.graphicalNote,
+        measureNumber: best.measureNumber,
       }
     } else {
       result = { actualMidi: midi, actualTimeSec: timeSec, classification: 'extra', velocity }
@@ -107,6 +108,7 @@ export class NoteMatcher {
             classification: 'missed',
             graphicalNote,
             hand,
+            measureNumber: event.measureNumber,
           }
           this.results.push(result)
           newlyMissed.push(result)

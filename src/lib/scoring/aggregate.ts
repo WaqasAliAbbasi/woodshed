@@ -75,7 +75,8 @@ export function aggregate(results: NoteResult[], expectedCount: number): Attempt
     early,
     late,
     pitchAccuracy: expectedCount > 0 ? correct / expectedCount : 0,
-    timingAccuracy: correct > 0 ? onTime / correct : 0,
+    timingAccuracy: expectedCount > 0 ? onTime / expectedCount : 0,
+    timingAccuracyOfCorrect: correct > 0 ? onTime / correct : 0,
     handBalance: computeHandBalance(results),
   }
 }

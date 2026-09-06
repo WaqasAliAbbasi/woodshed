@@ -100,6 +100,16 @@ describe('practiceReducer', () => {
     }
   })
 
+  it('"repeat" with a tempoBpm overrides the tempo instead of reusing the completed attempt\'s', () => {
+    const complete = runFullHappyPath()
+    const state = practiceReducer(complete, { type: 'repeat', tempoBpm: 100 })
+    expect(state.status).toBe('CountingIn')
+    if (state.status === 'CountingIn') {
+      expect(state.range).toEqual(range)
+      expect(state.tempoBpm).toBe(100)
+    }
+  })
+
   it('"adjust" from AttemptComplete goes back to SectionConfigured', () => {
     const complete = runFullHappyPath()
     const state = practiceReducer(complete, { type: 'adjust' })

@@ -2,6 +2,7 @@ import type { GraphicalNote, OpenSheetMusicDisplay } from 'opensheetmusicdisplay
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { correlateClock, getAudioContext, midiTimeStampToAudioTime, type ClockCorrelation } from '../../lib/clock/audioClock'
 import { Metronome } from '../../lib/clock/metronome'
+import { Playback } from '../../lib/clock/playback'
 import { isReadyToStopLooping, SECTION_STATUS_LABEL } from '../../lib/coach/suggestNextStep'
 import type { SectionProgress } from '../../lib/coach/pieceProgress'
 import { recordAttempt } from '../../lib/db/attemptsRepo'
@@ -14,6 +15,7 @@ import {
   getCountInBeats,
   getDefaultTempoBpm,
   getTempoPresets,
+  scrollCursorIntoView,
   type HandFilter,
 } from '../../lib/musicxml/buildExpectedTimeline'
 import type { ExpectedChordEvent, MeasureRange } from '../../lib/musicxml/types'
@@ -89,8 +91,10 @@ export function PracticeSession({
   const [currentBeat, setCurrentBeat] = useState(0)
   const [beatsPerMeasure, setBeatsPerMeasure] = useState(4)
   const [loopEnabled, setLoopEnabled] = useState(false)
+  const [isPlayingBack, setIsPlayingBack] = useState(false)
 
   const sectionIdRef = useRef<string | undefined>(undefined)
+  const playbackRef = useRef<Playback | undefined>(undefined)
   const matcherRef = useRef<NoteMatcher | undefined>(undefined)
   const sequenceMatcherRef = useRef<SequenceMatcher | undefined>(undefined)
   const correlationRef = useRef<ClockCorrelation | undefined>(undefined)
@@ -131,6 +135,15 @@ export function PracticeSession({
     if (editable) dispatch({ type: 'configureSection', range, tempoBpm, handFilter, mode })
   }, [range, tempoBpm, handFilter, mode, editable])
 
+  // The reverse sync: while not editable, the reducer is the source of truth
+  // for tempo (Loop mode's speed trainer bumps it between reps — see the
+  // loop effect below). Mirror it back into the TempoControl's value so a
+  // tempo bump is visible in the deck even though the control is disabled,
+  // instead of the control silently showing the pre-loop tempo.
+  useEffect(() => {
+    if (state.status !== 'PieceLoaded') setTempoBpm(state.tempoBpm)
+  }, [state])
+
   // Feed MIDI note-on events into the active matcher only while actually attempting.
   useEffect(() => {
     if (state.status !== 'Attempting') {
@@ -168,6 +181,7 @@ export function PracticeSession({
         const measureNumber = sequenceMatcher.currentChord?.measureNumber
         if (measureNumber !== undefined && measureNumber !== lastShownMeasureRef.current) {
           advanceCursorToMeasure(osmd, measureNumber)
+          scrollCursorIntoView(osmd)
           lastShownMeasureRef.current = measureNumber
         }
         return
@@ -263,6 +277,7 @@ export function PracticeSession({
 
     advanceCursorToMeasure(osmd, state.range.startMeasure)
     osmd.cursor.show()
+    scrollCursorIntoView(osmd)
     return () => osmd.cursor.hide()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fires once on entering Attempting in Notes mode; range/hand are frozen by the reducer until AttemptComplete
   }, [state.status === 'Attempting' && state.mode === 'notes', osmd])
@@ -280,6 +295,7 @@ export function PracticeSession({
 
     advanceCursorToMeasure(osmd, state.range.startMeasure)
     osmd.cursor.show()
+    scrollCursorIntoView(osmd)
 
     const loopStartTimeSec = loopStartTimeSecRef.current ?? audioContext.currentTime
     const lastOnset = events.length > 0 ? events[events.length - 1].onsetSec : 0
@@ -295,6 +311,7 @@ export function PracticeSession({
         const measureNumber = events[nextEventIndexRef.current].measureNumber
         if (measureNumber !== lastShownMeasureRef.current) {
           advanceCursorToMeasure(osmd, measureNumber)
+          scrollCursorIntoView(osmd)
           lastShownMeasureRef.current = measureNumber
         }
         nextEventIndexRef.current++
@@ -350,10 +367,15 @@ export function PracticeSession({
     })
   }, [state.status, piece.id, onAttemptRecorded]) // eslint-disable-line react-hooks/exhaustive-deps -- fires once on entering AttemptScoring, closing over that render's state
 
-  // Loop mode: auto-repeat until the section is ready to stop (see
-  // isReadyToStopLooping) or the user stops it. Stopping an attempt early
-  // (aborted) is treated as "I want out" and turns the loop off rather than
-  // immediately restarting, since that's the only way to interrupt a loop.
+  // Loop mode: a speed trainer. Auto-repeats at the same tempo on a failing
+  // rep; on a passing rep (see isReadyToStopLooping) in Metronome mode, steps
+  // up to the next tempo preset instead of switching itself off, so a loop
+  // started at the slow preset climbs slow -> medium -> target and only then
+  // stops. Notes mode has no tempo to step (see TempoControl, hidden outside
+  // Metronome mode) so a pass there still just stops the loop. Stopping an
+  // attempt early (aborted) is treated as "I want out" and turns the loop off
+  // rather than immediately restarting, since that's the only way to
+  // interrupt a loop.
   useEffect(() => {
     if (!loopEnabled || state.status !== 'AttemptComplete') return
     if (state.aborted) {
@@ -362,20 +384,53 @@ export function PracticeSession({
     }
     if (state.aggregate.expected === 0) return // nothing playable in this range/hand combo — nothing to loop toward
     if (isReadyToStopLooping(state.mode, state.aggregate)) {
-      setLoopEnabled(false)
-      return
+      const nextTempoBpm = state.mode === 'metronome' ? tempoPresets.find((preset) => preset > state.tempoBpm) : undefined
+      if (nextTempoBpm === undefined) {
+        setLoopEnabled(false)
+        return
+      }
+      const timeout = setTimeout(() => dispatch({ type: 'repeat', tempoBpm: nextTempoBpm }), LOOP_REPEAT_DELAY_MS)
+      return () => clearTimeout(timeout)
     }
     const timeout = setTimeout(() => dispatch({ type: 'repeat' }), LOOP_REPEAT_DELAY_MS)
     return () => clearTimeout(timeout)
-  }, [state, loopEnabled])
+  }, [state, loopEnabled, tempoPresets])
 
   const handleStart = async () => {
     if (state.status !== 'SectionConfigured') return
+    playbackRef.current?.stop()
+    setIsPlayingBack(false)
     onEditableChange(false)
     const section = await resolveSection(piece.id, state.range, state.tempoBpm, state.handFilter, state.mode)
     sectionIdRef.current = section.id
     dispatch({ type: 'start' })
   }
+
+  // Reference playback: hear the selected range (at the chosen tempo/hand
+  // filter) before attempting it — modelling the target sound, which
+  // otherwise nothing in the app does besides the metronome click. Reuses
+  // buildExpectedTimeline verbatim, same as the matchers do, so playback and
+  // scoring always agree on what the range actually contains.
+  const handlePlayRange = () => {
+    if (state.status !== 'SectionConfigured') return
+    const audioContext = getAudioContext()
+    void audioContext.resume()
+    const events = buildExpectedTimeline(osmd, state.range, state.tempoBpm, state.handFilter)
+    const playback = new Playback(audioContext)
+    playbackRef.current = playback
+    setIsPlayingBack(true)
+    playback.start(events, audioContext.currentTime + LEAD_IN_SEC, () => setIsPlayingBack(false))
+  }
+
+  const handleStopPlayback = () => {
+    playbackRef.current?.stop()
+    setIsPlayingBack(false)
+  }
+
+  // Stop any in-flight playback if the component unmounts mid-playback (e.g. switching pieces).
+  useEffect(() => {
+    return () => playbackRef.current?.stop()
+  }, [])
 
   const handleAdjust = () => {
     onEditableChange(true)
@@ -404,6 +459,19 @@ export function PracticeSession({
     ? Math.round((100 * handBalance.leftAvgVelocity) / (handBalance.leftAvgVelocity + handBalance.rightAvgVelocity))
     : 0
   const showLoopToggle = state.status === 'SectionConfigured' || state.status === 'AttemptComplete'
+  // Loop mode's speed-trainer step-up (see the loop effect below) is about
+  // to bump the tempo for the next rep — surfaced here so it's visible in
+  // the deck *before* it happens, not just inferred from the TempoControl
+  // silently showing a new number once the next rep starts.
+  const nextLoopTempoBpm =
+    state.status === 'AttemptComplete' &&
+    loopEnabled &&
+    !state.aborted &&
+    state.aggregate.expected > 0 &&
+    state.mode === 'metronome' &&
+    isReadyToStopLooping(state.mode, state.aggregate)
+      ? tempoPresets.find((preset) => preset > state.tempoBpm)
+      : undefined
 
   return (
     <div className="practice-session">
@@ -470,7 +538,16 @@ export function PracticeSession({
                     {mode === 'metronome' && (
                       <div className="stat">
                         <span className="stat-label">Timing</span>
-                        <span className="stat-value">{Math.round(state.aggregate.timingAccuracy * 100)}%</span>
+                        <span
+                          className="stat-value"
+                          title={
+                            state.aggregate.timingAccuracyOfCorrect !== undefined && state.aggregate.correct < state.aggregate.expected
+                              ? `${Math.round(state.aggregate.timingAccuracyOfCorrect * 100)}% of the notes you played were on time`
+                              : undefined
+                          }
+                        >
+                          {Math.round(state.aggregate.timingAccuracy * 100)}%
+                        </span>
                         <span className="stat-bar stat-bar-timing">
                           <span style={{ width: `${Math.round(state.aggregate.timingAccuracy * 100)}%` }} />
                         </span>
@@ -501,6 +578,7 @@ export function PracticeSession({
                         </>
                       )}
                     </p>
+                    {nextLoopTempoBpm !== undefined && <p className="tally loop-tempo-bump">Solid — next rep at {nextLoopTempoBpm} BPM</p>}
                   </div>
                 </>
               )}
@@ -519,6 +597,16 @@ export function PracticeSession({
                 Loop
               </button>
             )}
+            {state.status === 'SectionConfigured' &&
+              (isPlayingBack ? (
+                <button type="button" className="btn-toggle btn-toggle-active" onClick={handleStopPlayback}>
+                  Stop playback
+                </button>
+              ) : (
+                <button type="button" className="btn-toggle" onClick={handlePlayRange} title="Hear the selected range">
+                  ▶ Play
+                </button>
+              ))}
             {state.status === 'SectionConfigured' && (
               <button
                 type="button"

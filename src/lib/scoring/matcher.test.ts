@@ -8,9 +8,9 @@ function mockGraphicalNote(label: string): GraphicalNote {
   return { label } as unknown as GraphicalNote
 }
 
-function event(onsetSec: number, midiNumbers: number[], hands?: ('left' | 'right')[]): ExpectedChordEvent {
+function event(onsetSec: number, midiNumbers: number[], hands?: ('left' | 'right')[], measureNumber = 1): ExpectedChordEvent {
   const graphicalNotes = midiNumbers.map((midi, i) => mockGraphicalNote(`m${midi}#${i}`))
-  return { onsetSec, durationSec: 0.5, midiNumbers, graphicalNotes, hands: hands ?? midiNumbers.map(() => 'right'), measureNumber: 1 }
+  return { onsetSec, durationSec: 0.5, midiNumbers, graphicalNotes, hands: hands ?? midiNumbers.map(() => 'right'), measureNumber }
 }
 
 describe('NoteMatcher', () => {
@@ -115,7 +115,18 @@ describe('NoteMatcher', () => {
     expect(aggregate.onTime).toBe(1)
     expect(aggregate.late).toBe(1)
     expect(aggregate.pitchAccuracy).toBeCloseTo(2 / 3)
-    expect(aggregate.timingAccuracy).toBeCloseTo(1 / 2)
+    expect(aggregate.timingAccuracy).toBeCloseTo(1 / 3)
+    expect(aggregate.timingAccuracyOfCorrect).toBeCloseTo(1 / 2)
+  })
+
+  it('tags matched and missed results with the measure of the expected event, and leaves extra notes unattributed', () => {
+    const matcher = new NoteMatcher([event(1.0, [60], undefined, 3), event(2.0, [64], undefined, 7)])
+    const matched = matcher.noteOn(60, 1.0)
+    const wrong = matcher.noteOn(99, 1.5) // no expected event for 99 -> extra, no cursor to attribute to
+    const { noteResults } = matcher.finalize() // 64 never played -> missed
+    expect(matched.measureNumber).toBe(3)
+    expect(wrong.measureNumber).toBeUndefined()
+    expect(noteResults.find((r) => r.classification === 'missed')?.measureNumber).toBe(7)
   })
 
   it('returns the graphicalNote corresponding to the matched pitch', () => {

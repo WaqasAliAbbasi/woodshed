@@ -6,6 +6,30 @@ function correct(hand: 'left' | 'right', velocity: number): NoteResult {
   return { classification: 'onTime', hand, velocity, expectedMidi: 60, expectedOnsetSec: 0 }
 }
 
+describe('aggregate accuracy', () => {
+  it('does not read as 100% timing when only a few of many expected notes were played', () => {
+    // 20 expected, only 3 played, all on time — this used to score
+    // timingAccuracy at 100% (onTime / correct) despite being a mostly-missed
+    // attempt. It should read as mostly-missed on timing too.
+    const results: NoteResult[] = [correct('right', 80), correct('right', 80), correct('right', 80)]
+    const { pitchAccuracy, timingAccuracy, timingAccuracyOfCorrect } = aggregate(results, 20)
+    expect(pitchAccuracy).toBeCloseTo(0.15)
+    expect(timingAccuracy).toBeCloseTo(0.15)
+    expect(timingAccuracyOfCorrect).toBe(1)
+  })
+
+  it('timingAccuracyOfCorrect isolates rhythm quality from how many notes were attempted', () => {
+    const results: NoteResult[] = [
+      correct('right', 80),
+      correct('right', 80),
+      { classification: 'late', hand: 'right', velocity: 80, expectedMidi: 60, expectedOnsetSec: 0, deltaMs: 200 },
+    ]
+    const { timingAccuracy, timingAccuracyOfCorrect } = aggregate(results, 3)
+    expect(timingAccuracy).toBeCloseTo(2 / 3)
+    expect(timingAccuracyOfCorrect).toBeCloseTo(2 / 3)
+  })
+})
+
 describe('aggregate handBalance', () => {
   it('averages velocity per hand across correctly-matched notes', () => {
     const results: NoteResult[] = [correct('left', 40), correct('left', 60), correct('right', 90), correct('right', 100)]

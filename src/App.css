@@ -220,6 +220,46 @@
   cursor: pointer;
 }
 
+.viewer-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.zoom-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  cursor: default;
+}
+
+.zoom-control button {
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.zoom-control button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.zoom-level {
+  min-width: 3ch;
+  text-align: center;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
 .progress-legend {
   display: flex;
   gap: 1rem;
@@ -649,6 +689,11 @@
   color: var(--muted);
 }
 
+.loop-tempo-bump {
+  color: var(--pine);
+  font-weight: 600;
+}
+
 .deck-actions {
   justify-content: center;
 }
@@ -740,6 +785,42 @@
   background: var(--danger-text);
 }
 
+/* ---------- auto-chopped candidate sections ---------- */
+
+.section-suggestions {
+  margin-bottom: 0.4rem;
+}
+
+.tile-suggestion {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  align-items: flex-start;
+  min-width: unset;
+}
+
+.tile-suggestion:hover {
+  border-color: var(--accent);
+}
+
+.tile-suggestion-active {
+  border-color: var(--pine);
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-text);
+  font-weight: 600;
+}
+
+.selection-hint {
+  margin: 0 0 0.4rem;
+  font-size: 0.82rem;
+  color: var(--accent-soft-text);
+  background: var(--accent-soft-bg);
+  border-left: 3px solid var(--accent);
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius-sm);
+}
+
 .coach-suggestion {
   background: var(--accent-soft-bg);
   color: var(--accent-soft-text);
@@ -757,6 +838,19 @@
 .coach-detail {
   margin: 0.25rem 0 0;
   font-size: 0.9rem;
+}
+
+.coach-session-note {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.coach-queue {
+  margin: 0.4rem 0 0;
+  font-size: 0.82rem;
+  opacity: 0.85;
 }
 
 /* ---------- practice log ---------- */

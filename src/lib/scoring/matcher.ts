@@ -3,10 +3,22 @@ import { aggregate } from './aggregate'
 import { toMultiset, type RemainingNote } from './noteMultiset'
 import type { AttemptAggregate, NoteResult } from './types'
 
-/** Within this many ms of the expected onset, timing counts as "on time". */
-export const ON_TIME_MS = 60
-/** Beyond this many ms from the expected onset, a pitch match doesn't count as being "for" that event at all. */
-export const ACCEPT_MS = 180
+/**
+ * Within this many ms of the expected onset, timing counts as "on time".
+ * Was 60ms — tight enough that players reported scoring poorly on timing
+ * despite feeling like they played correctly. 60ms is closer to
+ * professional-tightness rhythm-game grading than a forgiving practice
+ * tool; widened to give ordinary human timing variance room to still read
+ * as "on time".
+ */
+export const ON_TIME_MS = 100
+/**
+ * Beyond this many ms from the expected onset, a pitch match doesn't count
+ * as being "for" that event at all. Widened alongside ON_TIME_MS (same
+ * ~2.5x ratio) so notes played slightly outside the on-time window still
+ * register as early/late instead of falling through to missed/extra.
+ */
+export const ACCEPT_MS = 250
 
 interface OpenEvent {
   onsetSec: number

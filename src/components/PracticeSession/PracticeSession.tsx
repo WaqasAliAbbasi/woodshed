@@ -19,8 +19,8 @@ import {
 import type { ExpectedChordEvent, MeasureRange } from '../../lib/musicxml/types'
 import { ACCEPT_MS, NoteMatcher } from '../../lib/scoring/matcher'
 import { SequenceMatcher } from '../../lib/scoring/sequenceMatcher'
-import type { PracticeMode } from '../../lib/scoring/types'
-import { CORRECT_COLOR, WRONG_COLOR, getDefaultMusicColor } from '../../lib/theme'
+import type { NoteClassification, PracticeMode } from '../../lib/scoring/types'
+import { CORRECT_COLOR, MISTIMED_COLOR, WRONG_COLOR, getDefaultMusicColor } from '../../lib/theme'
 import type { MidiNoteEvent } from '../../lib/midi/midiEvents'
 import { HandFilterControl } from '../HandFilterControl/HandFilterControl'
 import type { UseMidiInputResult } from '../InputSourceSelector/useMidiInput'
@@ -33,6 +33,15 @@ const LOOP_END_GRACE_SEC = 0.5
 const LEAD_IN_SEC = 0.15
 /** Pause after an attempt finishes before Loop mode auto-repeats — long enough to glance at the result, short enough to keep drilling. */
 const LOOP_REPEAT_DELAY_MS = 1500
+
+/** 'extra' is unreachable here — a wrong note has no graphicalNote to color (see NoteResult.graphicalNote) — but every classification still needs an entry to keep this a total function. */
+const CLASSIFICATION_COLOR: Record<NoteClassification, string> = {
+  onTime: CORRECT_COLOR,
+  early: MISTIMED_COLOR,
+  late: MISTIMED_COLOR,
+  missed: WRONG_COLOR,
+  extra: WRONG_COLOR,
+}
 
 export function PracticeSession({
   osmd,
@@ -157,16 +166,16 @@ export function PracticeSession({
         return
       }
 
+      // Metronome mode: score the note but don't color it live — the player
+      // should stay engrossed in the music, not watch the score for
+      // right/wrong as they go. Coloring happens all at once when the
+      // attempt finishes (see the AttemptScoring effect below).
       const matcher = matcherRef.current
       const correlation = correlationRef.current
       const loopStartTimeSec = loopStartTimeSecRef.current
       if (!matcher || !correlation || loopStartTimeSec === undefined) return
       const audioTimeSec = midiTimeStampToAudioTime(correlation, event.timeStampMs)
-      const result = matcher.noteOn(event.note, audioTimeSec - loopStartTimeSec, event.velocity)
-      if (result.graphicalNote) {
-        result.graphicalNote.setColor(CORRECT_COLOR, { applyToNoteheads: true })
-        coloredNotesRef.current.push(result.graphicalNote)
-      }
+      matcher.noteOn(event.note, audioTimeSec - loopStartTimeSec, event.velocity)
     })
     return () => midi.setNoteHandler(() => {})
   }, [state.status, midi, osmd]) // eslint-disable-line react-hooks/exhaustive-deps -- fires once on entering Attempting; mode/range are frozen by the reducer until AttemptComplete
@@ -263,13 +272,9 @@ export function PracticeSession({
 
     const tick = () => {
       const elapsedSec = audioContext.currentTime - loopStartTimeSec
-      const newlyMissed = matcherRef.current?.sweepMissed(elapsedSec) ?? []
-      for (const result of newlyMissed) {
-        if (result.graphicalNote) {
-          result.graphicalNote.setColor(WRONG_COLOR, { applyToNoteheads: true })
-          coloredNotesRef.current.push(result.graphicalNote)
-        }
-      }
+      // Sweep for scoring only — missed notes are colored all at once at the
+      // end of the attempt (see the AttemptScoring effect below), not live.
+      matcherRef.current?.sweepMissed(elapsedSec)
 
       while (nextEventIndexRef.current < events.length && events[nextEventIndexRef.current].onsetSec <= elapsedSec) {
         const measureNumber = events[nextEventIndexRef.current].measureNumber
@@ -302,14 +307,14 @@ export function PracticeSession({
     if (!activeMatcher || !sectionId) return
     const { aggregate, noteResults } = activeMatcher.finalize()
 
-    // Safety-net coloring pass: covers notes the live tick loop/note handler
-    // didn't get to (e.g. the attempt was stopped early). Harmless to
-    // redundantly recolor notes already colored live.
+    // Metronome mode's only coloring pass (it deliberately doesn't color
+    // live — see the note handler and tick loop above) and Notes mode's
+    // safety net for notes the live handler didn't get to (e.g. the attempt
+    // was stopped early). Harmless to redundantly recolor notes already
+    // colored live.
     for (const result of noteResults) {
       if (result.graphicalNote) {
-        result.graphicalNote.setColor(result.classification === 'missed' ? WRONG_COLOR : CORRECT_COLOR, {
-          applyToNoteheads: true,
-        })
+        result.graphicalNote.setColor(CLASSIFICATION_COLOR[result.classification], { applyToNoteheads: true })
         coloredNotesRef.current.push(result.graphicalNote)
       }
     }

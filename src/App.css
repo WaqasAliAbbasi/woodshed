@@ -269,6 +269,23 @@
   overflow-y: auto;
 }
 
+/*
+ * Above phone/portrait widths (this is where landscape iPads land — an
+ * 11"+ iPad in landscape is 1024px+ wide, while even a portrait iPad stays
+ * under 860px), give the column more room. The practice deck's controls
+ * (tempo/mode/hand-filter) wrap onto separate lines at the 640px width,
+ * which on a landscape iPad's shorter viewport ate a large share of the
+ * available vertical space — widening the column gives them enough room
+ * to sit on one line instead. Declared after the base `.app`/`.deck` rules
+ * (same specificity) so it actually wins the cascade at matching widths.
+ */
+@media (min-width: 860px) {
+  .app,
+  .deck {
+    max-width: 960px;
+  }
+}
+
 .deck-row {
   display: flex;
   align-items: center;

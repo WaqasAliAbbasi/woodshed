@@ -234,6 +234,20 @@ describe('getCountInBeats', () => {
     // pickup ahead of it took 0.
     expect(getCountInBeats(osmd, 1, 1)).toBe(4)
   })
+
+  it('counts in a fractional beat for a pickup that starts mid-beat', async () => {
+    // A single eighth-note pickup in 4/4 is a 0.5-beat measure — it lands on
+    // "the and" of beat 3, not on a beat itself, unlike the 1-beat
+    // ("Calypso Carnival"-shaped) pickup above. The count-in must reflect
+    // that half beat (3.5, not 3 or 4) or every note in the resulting
+    // attempt gets mistimed by half a beat relative to the click track —
+    // this used to be rounded away to a whole beat.
+    const pickupXml = readFileSync(resolve(__dirname, './__fixtures__/pickup-eighth-measure.musicxml'), 'utf-8')
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const { osmd } = await loadScore(container, pickupXml)
+    expect(getCountInBeats(osmd, 0, 1)).toBe(3.5)
+  })
 })
 
 describe('getDefaultTempoBpm', () => {

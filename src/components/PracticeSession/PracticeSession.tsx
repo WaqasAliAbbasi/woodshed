@@ -31,8 +31,15 @@ import { initialPracticeState, practiceReducer } from './practiceMachine'
 const COUNT_IN_MEASURES = 1
 const LOOP_END_GRACE_SEC = 0.5
 const LEAD_IN_SEC = 0.15
-/** Pause after an attempt finishes before Loop mode auto-repeats — long enough to glance at the result, short enough to keep drilling. */
-const LOOP_REPEAT_DELAY_MS = 1500
+/**
+ * Pause after an attempt finishes before Loop mode auto-repeats — long
+ * enough to actually read the result (pitch/timing %, hand balance, note
+ * tally), short enough to keep drilling. Was 1500ms; too short in practice
+ * for someone reading multiple stats while sitting at the keyboard rather
+ * than at the mouse — the loop toggle is the only way to cancel a pending
+ * repeat, and 1.5s often wasn't enough time to even notice one was coming.
+ */
+const LOOP_REPEAT_DELAY_MS = 4000
 
 /** 'extra' is unreachable here — a wrong note has no graphicalNote to color (see NoteResult.graphicalNote) — but every classification still needs an entry to keep this a total function. */
 const CLASSIFICATION_COLOR: Record<NoteClassification, string> = {
@@ -215,12 +222,20 @@ export function PracticeSession({
     const measureBeats = getBeatsPerMeasure(osmd, state.range.startMeasure)
     setBeatsPerMeasure(measureBeats)
     const countInBeats = getCountInBeats(osmd, state.range.startMeasure, COUNT_IN_MEASURES)
+    // countInBeats can be fractional (a pickup starting mid-beat, e.g. on
+    // "the and" of beat 3 — see getCountInBeats), but the click track only
+    // ticks on whole beats. Trigger on the last whole-beat click before the
+    // target and land loopStartTimeSecRef the leftover fraction later,
+    // rather than snapping to the nearest click and mistiming every note in
+    // the attempt by however much got rounded away.
+    const countInWholeBeats = Math.floor(countInBeats)
+    const countInFractionSec = (countInBeats - countInWholeBeats) * (60 / state.tempoBpm)
 
     const metronome = new Metronome(audioContext, state.tempoBpm, measureBeats)
     metronome.start(audioContext.currentTime + LEAD_IN_SEC, (beatIndex, timeSec) => {
       setCurrentBeat(beatIndex % measureBeats)
-      if (beatIndex === countInBeats) {
-        loopStartTimeSecRef.current = timeSec
+      if (beatIndex === countInWholeBeats) {
+        loopStartTimeSecRef.current = timeSec + countInFractionSec
         dispatch({ type: 'countInDone' })
       }
     })
@@ -444,58 +459,66 @@ export function PracticeSession({
                 </span>
               ) : (
                 <>
-                  <div className="stat">
-                    <span className="stat-label">Pitch</span>
-                    <span className="stat-value">{Math.round(state.aggregate.pitchAccuracy * 100)}%</span>
-                    <span className="stat-bar">
-                      <span style={{ width: `${Math.round(state.aggregate.pitchAccuracy * 100)}%` }} />
-                    </span>
-                  </div>
-                  {mode === 'metronome' && (
+                  <div className="stat-row">
                     <div className="stat">
-                      <span className="stat-label">Timing</span>
-                      <span className="stat-value">{Math.round(state.aggregate.timingAccuracy * 100)}%</span>
-                      <span className="stat-bar stat-bar-timing">
-                        <span style={{ width: `${Math.round(state.aggregate.timingAccuracy * 100)}%` }} />
+                      <span className="stat-label">Pitch</span>
+                      <span className="stat-value">{Math.round(state.aggregate.pitchAccuracy * 100)}%</span>
+                      <span className="stat-bar">
+                        <span style={{ width: `${Math.round(state.aggregate.pitchAccuracy * 100)}%` }} />
                       </span>
                     </div>
-                  )}
-                  {handBalance && (
-                    <div className="stat">
-                      <span className="stat-label">Balance</span>
-                      <span className="stat-value">
-                        L {Math.round(handBalance.leftAvgVelocity)} · R {Math.round(handBalance.rightAvgVelocity)}
-                      </span>
-                      <span className="stat-bar stat-bar-balance">
-                        <span className="stat-bar-balance-left" style={{ width: `${leftBalancePct}%` }} />
-                        <span className="stat-bar-balance-right" style={{ width: `${100 - leftBalancePct}%` }} />
-                      </span>
-                    </div>
-                  )}
-                  {sectionStatus && <div className={`stamp stamp-${sectionStatus}`}>{SECTION_STATUS_LABEL[sectionStatus]}</div>}
-                  <p className="tally">
-                    {state.aggregate.correct}/{state.aggregate.expected} notes · {state.aggregate.missed} missed ·{' '}
-                    {state.aggregate.extra} wrong
                     {mode === 'metronome' && (
-                      <>
-                        {' '}
-                        · {state.aggregate.onTime} on / {state.aggregate.early} early / {state.aggregate.late} late
-                      </>
+                      <div className="stat">
+                        <span className="stat-label">Timing</span>
+                        <span className="stat-value">{Math.round(state.aggregate.timingAccuracy * 100)}%</span>
+                        <span className="stat-bar stat-bar-timing">
+                          <span style={{ width: `${Math.round(state.aggregate.timingAccuracy * 100)}%` }} />
+                        </span>
+                      </div>
                     )}
-                  </p>
+                    {handBalance && (
+                      <div className="stat">
+                        <span className="stat-label">Balance</span>
+                        <span className="stat-value">
+                          L {Math.round(handBalance.leftAvgVelocity)} · R {Math.round(handBalance.rightAvgVelocity)}
+                        </span>
+                        <span className="stat-bar stat-bar-balance">
+                          <span className="stat-bar-balance-left" style={{ width: `${leftBalancePct}%` }} />
+                          <span className="stat-bar-balance-right" style={{ width: `${100 - leftBalancePct}%` }} />
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="result-footer">
+                    {sectionStatus && <div className={`stamp stamp-${sectionStatus}`}>{SECTION_STATUS_LABEL[sectionStatus]}</div>}
+                    <p className="tally">
+                      {state.aggregate.correct}/{state.aggregate.expected} notes · {state.aggregate.missed} missed ·{' '}
+                      {state.aggregate.extra} wrong
+                      {mode === 'metronome' && (
+                        <>
+                          {' '}
+                          · {state.aggregate.onTime} on / {state.aggregate.early} early / {state.aggregate.late} late
+                        </>
+                      )}
+                    </p>
+                  </div>
                 </>
               )}
             </div>
           )}
 
-          {showLoopToggle && (
-            <label className="loop-toggle">
-              <input type="checkbox" checked={loopEnabled} onChange={(e) => setLoopEnabled(e.target.checked)} />
-              Loop until ready
-            </label>
-          )}
-
           <div className="deck-row deck-actions">
+            {showLoopToggle && (
+              <button
+                type="button"
+                className={`btn-toggle${loopEnabled ? ' btn-toggle-active' : ''}`}
+                aria-pressed={loopEnabled}
+                onClick={() => setLoopEnabled((on) => !on)}
+                title="Loop until ready"
+              >
+                Loop
+              </button>
+            )}
             {state.status === 'SectionConfigured' && (
               <button
                 type="button"

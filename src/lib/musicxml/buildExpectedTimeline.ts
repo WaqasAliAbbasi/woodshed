@@ -74,12 +74,19 @@ export function getBeatsPerMeasure(osmd: OpenSheetMusicDisplay, measureNumber: n
  * which is shorter than the nominal meter for a pickup/anacrusis measure (or
  * any other incomplete measure, e.g. a short final measure). Falls back to
  * the nominal meter count if duration info is unavailable.
+ *
+ * Can be fractional: a pickup doesn't have to start on a beat boundary (e.g.
+ * a single eighth-note pickup landing on "the and" of beat 3 in 4/4 is a
+ * 0.5-beat measure). Only rounds to the nearest 1/64 beat, to absorb float
+ * noise from the underlying Fraction math (e.g. triplet durations) without
+ * collapsing a genuine half-beat pickup to a whole beat — see
+ * `getCountInBeats`, which must count in the leftover fraction too.
  */
 function getActualBeatsInMeasure(osmd: OpenSheetMusicDisplay, measureNumber: number): number {
   const sourceMeasure = getSourceMeasure(osmd, measureNumber)
   const duration = sourceMeasure?.Duration
   if (!duration) return getBeatsPerMeasure(osmd, measureNumber)
-  const quarterNoteBeats = Math.round(duration.RealValue * 4)
+  const quarterNoteBeats = Math.round(duration.RealValue * 4 * 64) / 64
   return quarterNoteBeats > 0 ? quarterNoteBeats : getBeatsPerMeasure(osmd, measureNumber)
 }
 
@@ -97,6 +104,12 @@ function getActualBeatsInMeasure(osmd: OpenSheetMusicDisplay, measureNumber: num
  * own lead-in bar. `beatsPerMeasure` (used for the beat-indicator dots and
  * downbeat accent) intentionally stays at the nominal count either way —
  * only the count-in *length* changes.
+ *
+ * Can be fractional when the pickup itself starts mid-beat (e.g. a single
+ * eighth-note pickup landing on "the and" of beat 3 in 4/4 needs 3.5 beats
+ * of count-in, not 3 or 4) — callers driving a beat-indexed click track
+ * can't land a click exactly there and must interpolate between the two
+ * surrounding clicks. See PracticeSession's use of this for that math.
  */
 export function getCountInBeats(osmd: OpenSheetMusicDisplay, measureNumber: number, countInMeasures: number): number {
   const nominalBeats = getBeatsPerMeasure(osmd, measureNumber)

@@ -33,6 +33,8 @@ export interface Attempt {
   timestamp: number
   aborted: boolean
   aggregate: AttemptAggregate
+  /** Wall-clock length of the attempt (count-in through finalize), in ms. Absent on attempts recorded before this was tracked. */
+  durationMs?: number
   /** GraphicalNote references are stripped before storage — see StoredNoteResult. */
   noteResults: StoredNoteResult[]
 }

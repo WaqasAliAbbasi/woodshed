@@ -1,16 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
+import { listAllAttempts } from '../../lib/db/attemptsRepo'
 import { createPiece, deletePiece, listPieces } from '../../lib/db/piecesRepo'
 import type { Piece } from '../../lib/db/db'
 import { decompressMxl } from '../../lib/musicxml/loadMxl'
 import { parseMusicXmlMetadata } from '../../lib/musicxml/parseMetadata'
 import { isIOS } from '../../lib/platform'
+import { buildPieceStatsMap, formatDuration, formatPracticeDate, sortPiecesByRecency, type PieceStats } from '../../lib/pieceStats'
 
 export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void }) {
   const [pieces, setPieces] = useState<Piece[]>([])
+  const [statsByPieceId, setStatsByPieceId] = useState<Map<string, PieceStats>>(new Map())
   const [error, setError] = useState<string | undefined>(undefined)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const refresh = () => listPieces().then(setPieces)
+  const refresh = () =>
+    Promise.all([listPieces(), listAllAttempts()]).then(([loadedPieces, attempts]) => {
+      setPieces(loadedPieces)
+      setStatsByPieceId(buildPieceStatsMap(attempts))
+    })
 
   useEffect(() => {
     refresh()
@@ -65,22 +72,31 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
       <h2>Your pieces</h2>
       {pieces.length === 0 && <p>No pieces yet — upload a MusicXML file to get started.</p>}
       <ul>
-        {pieces.map((piece) => (
-          <li key={piece.id} className="piece-row">
-            <button type="button" className="piece-select" onClick={() => onSelect(piece)}>
-              <span className="piece-title">{piece.title}</span>
-              {piece.composer && <span className="piece-composer">{piece.composer}</span>}
-            </button>
-            <button
-              type="button"
-              className="piece-delete"
-              aria-label={`Delete ${piece.title}`}
-              onClick={() => void handleDelete(piece)}
-            >
-              Delete
-            </button>
-          </li>
-        ))}
+        {sortPiecesByRecency(pieces, statsByPieceId).map((piece) => {
+          const stats = statsByPieceId.get(piece.id)
+          return (
+            <li key={piece.id} className="piece-row">
+              <button type="button" className="piece-select" onClick={() => onSelect(piece)}>
+                <span className="piece-title">{piece.title}</span>
+                {piece.composer && <span className="piece-composer">{piece.composer}</span>}
+                {stats && (
+                  <span className="piece-meta">
+                    {formatDuration(stats.totalDurationMs)} practiced · first {formatPracticeDate(stats.firstPracticedAt)} · last{' '}
+                    {formatPracticeDate(stats.lastPracticedAt)}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                className="piece-delete"
+                aria-label={`Delete ${piece.title}`}
+                onClick={() => void handleDelete(piece)}
+              >
+                Delete
+              </button>
+            </li>
+          )
+        })}
       </ul>
       <input
         ref={fileInputRef}

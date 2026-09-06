@@ -1,25 +1,30 @@
 import type { GraphicalNote } from 'opensheetmusicdisplay'
 import type { ExpectedChordEvent } from '../musicxml/types'
 import { aggregate } from './aggregate'
-import type { AttemptAggregate, NoteResult } from './types'
+import type { AttemptAggregate, Hand, NoteResult } from './types'
 
 /** Within this many ms of the expected onset, timing counts as "on time". */
 export const ON_TIME_MS = 60
 /** Beyond this many ms from the expected onset, a pitch match doesn't count as being "for" that event at all. */
 export const ACCEPT_MS = 180
 
+interface RemainingNote {
+  graphicalNote: GraphicalNote
+  hand: Hand
+}
+
 interface OpenEvent {
   onsetSec: number
   measureNumber: number
-  /** midi note number -> stack of unmatched graphical notes for that pitch (a chord can double a pitch across voices). */
-  remaining: Map<number, GraphicalNote[]>
+  /** midi note number -> stack of unmatched notes for that pitch (a chord can double a pitch across voices/hands). */
+  remaining: Map<number, RemainingNote[]>
 }
 
-function toMultiset(midiNumbers: number[], graphicalNotes: GraphicalNote[]): Map<number, GraphicalNote[]> {
-  const map = new Map<number, GraphicalNote[]>()
+function toMultiset(midiNumbers: number[], graphicalNotes: GraphicalNote[], hands: Hand[]): Map<number, RemainingNote[]> {
+  const map = new Map<number, RemainingNote[]>()
   midiNumbers.forEach((midi, i) => {
     const stack = map.get(midi) ?? []
-    stack.push(graphicalNotes[i])
+    stack.push({ graphicalNote: graphicalNotes[i], hand: hands[i] })
     map.set(midi, stack)
   })
   return map
@@ -41,13 +46,13 @@ export class NoteMatcher {
     this.openEvents = events.map((e) => ({
       onsetSec: e.onsetSec,
       measureNumber: e.measureNumber,
-      remaining: toMultiset(e.midiNumbers, e.graphicalNotes),
+      remaining: toMultiset(e.midiNumbers, e.graphicalNotes, e.hands),
     }))
     this.totalExpected = events.reduce((sum, e) => sum + e.midiNumbers.length, 0)
   }
 
-  /** Record an incoming MIDI Note-On at `timeSec` (audio-clock seconds, see clock/audioClock.ts). */
-  noteOn(midi: number, timeSec: number): NoteResult {
+  /** Record an incoming MIDI Note-On at `timeSec` (audio-clock seconds, see clock/audioClock.ts). `velocity` (0-127) feeds the post-attempt hand-balance metric — see HandBalance. */
+  noteOn(midi: number, timeSec: number, velocity?: number): NoteResult {
     const acceptSec = ACCEPT_MS / 1000
     let best: OpenEvent | undefined
     let bestDeltaSec = Infinity
@@ -65,7 +70,7 @@ export class NoteMatcher {
     let result: NoteResult
     if (best) {
       const remainingForPitch = best.remaining.get(midi)!
-      const graphicalNote = remainingForPitch.pop()
+      const popped = remainingForPitch.pop()
       if (remainingForPitch.length === 0) {
         best.remaining.delete(midi)
       }
@@ -77,10 +82,12 @@ export class NoteMatcher {
         actualTimeSec: timeSec,
         classification: Math.abs(deltaMs) <= ON_TIME_MS ? 'onTime' : deltaMs < 0 ? 'early' : 'late',
         deltaMs,
-        graphicalNote,
+        velocity,
+        hand: popped?.hand,
+        graphicalNote: popped?.graphicalNote,
       }
     } else {
-      result = { actualMidi: midi, actualTimeSec: timeSec, classification: 'extra' }
+      result = { actualMidi: midi, actualTimeSec: timeSec, classification: 'extra', velocity }
     }
 
     this.results.push(result)
@@ -96,13 +103,14 @@ export class NoteMatcher {
       if (event.remaining.size === 0) continue
       if (nowSec - event.onsetSec <= acceptSec) continue
 
-      for (const [midi, graphicalNotes] of event.remaining) {
-        for (const graphicalNote of graphicalNotes) {
+      for (const [midi, remainingNotes] of event.remaining) {
+        for (const { graphicalNote, hand } of remainingNotes) {
           const result: NoteResult = {
             expectedMidi: midi,
             expectedOnsetSec: event.onsetSec,
             classification: 'missed',
             graphicalNote,
+            hand,
           }
           this.results.push(result)
           newlyMissed.push(result)

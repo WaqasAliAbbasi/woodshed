@@ -69,6 +69,7 @@ export function PracticeSession({
   const correlationRef = useRef<ClockCorrelation | undefined>(undefined)
   const loopStartTimeSecRef = useRef<number | undefined>(undefined)
   const eventsRef = useRef<ExpectedChordEvent[]>([])
+  const attemptStartWallClockRef = useRef<number | undefined>(undefined)
   const rafRef = useRef<number | undefined>(undefined)
   const nextEventIndexRef = useRef(0)
   const lastShownMeasureRef = useRef<number | undefined>(undefined)
@@ -95,7 +96,7 @@ export function PracticeSession({
       const loopStartTimeSec = loopStartTimeSecRef.current
       if (!matcher || !correlation || loopStartTimeSec === undefined) return
       const audioTimeSec = midiTimeStampToAudioTime(correlation, event.timeStampMs)
-      const result = matcher.noteOn(event.note, audioTimeSec - loopStartTimeSec)
+      const result = matcher.noteOn(event.note, audioTimeSec - loopStartTimeSec, event.velocity)
       if (result.graphicalNote) {
         result.graphicalNote.setColor(CORRECT_COLOR, { applyToNoteheads: true })
         coloredNotesRef.current.push(result.graphicalNote)
@@ -118,6 +119,7 @@ export function PracticeSession({
   // forever with no matcher to work with).
   useEffect(() => {
     if (state.status !== 'CountingIn' && state.status !== 'Attempting') return
+    attemptStartWallClockRef.current = Date.now()
     const audioContext = getAudioContext()
     void audioContext.resume()
     correlationRef.current = correlateClock(audioContext)
@@ -215,12 +217,15 @@ export function PracticeSession({
       }
     }
 
+    const durationMs = attemptStartWallClockRef.current !== undefined ? Date.now() - attemptStartWallClockRef.current : 0
+
     void recordAttempt({
       sectionId,
       pieceId: piece.id,
       tempoBpm: state.tempoBpm,
       aborted: state.aborted,
       aggregate,
+      durationMs,
       noteResults: noteResults.map(({ graphicalNote: _graphicalNote, ...stored }) => stored),
     }).then(() => {
       onAttemptRecorded(sectionId)
@@ -257,6 +262,11 @@ export function PracticeSession({
     state.status === 'AttemptComplete'
       ? progress.find((p) => p.section.id === sectionIdRef.current)?.status
       : undefined
+  const handBalance = state.status === 'AttemptComplete' ? state.aggregate.handBalance : undefined
+  // Rounded so the two segments always sum to exactly 100% (avoids a hairline gap or overlap from rounding each independently).
+  const leftBalancePct = handBalance
+    ? Math.round((100 * handBalance.leftAvgVelocity) / (handBalance.leftAvgVelocity + handBalance.rightAvgVelocity))
+    : 0
 
   return (
     <div className="practice-session">
@@ -317,6 +327,18 @@ export function PracticeSession({
                       <span style={{ width: `${Math.round(state.aggregate.timingAccuracy * 100)}%` }} />
                     </span>
                   </div>
+                  {handBalance && (
+                    <div className="stat">
+                      <span className="stat-label">Balance</span>
+                      <span className="stat-value">
+                        L {Math.round(handBalance.leftAvgVelocity)} · R {Math.round(handBalance.rightAvgVelocity)}
+                      </span>
+                      <span className="stat-bar stat-bar-balance">
+                        <span className="stat-bar-balance-left" style={{ width: `${leftBalancePct}%` }} />
+                        <span className="stat-bar-balance-right" style={{ width: `${100 - leftBalancePct}%` }} />
+                      </span>
+                    </div>
+                  )}
                   {sectionStatus && <div className={`stamp stamp-${sectionStatus}`}>{SECTION_STATUS_LABEL[sectionStatus]}</div>}
                   <p className="tally">
                     {state.aggregate.correct}/{state.aggregate.expected} notes · {state.aggregate.missed} missed ·{' '}

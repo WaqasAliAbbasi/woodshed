@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
+import { NoteMatcher } from '../scoring/matcher'
 import {
   buildExpectedTimeline,
   getBeatsPerMeasure,
@@ -130,6 +131,30 @@ describe('buildExpectedTimeline hand filtering', () => {
     expect(right[0].onsetSec).toBe(0)
     expect(left[0].onsetSec).toBe(0)
   })
+
+  it('tags every note in a hand-filtered timeline with the hand that was requested', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const { osmd } = await loadScore(container, musicXml)
+    const range = { startMeasure: 1, endMeasure: 4 }
+    const right = buildExpectedTimeline(osmd, range, 120, 'right')
+    const left = buildExpectedTimeline(osmd, range, 120, 'left')
+    expect(right.flatMap((e) => e.hands).every((hand) => hand === 'right')).toBe(true)
+    expect(left.flatMap((e) => e.hands).every((hand) => hand === 'left')).toBe(true)
+  })
+
+  it('tags both hands correctly within a single merged (both) timeline', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const { osmd } = await loadScore(container, musicXml)
+    const range = { startMeasure: 1, endMeasure: 4 }
+    const both = buildExpectedTimeline(osmd, range, 120, 'both')
+    const hands = new Set(both.flatMap((e) => e.hands))
+    expect(hands).toEqual(new Set(['left', 'right']))
+    for (const e of both) {
+      expect(e.hands).toHaveLength(e.midiNumbers.length)
+    }
+  })
 })
 
 describe('getStaffCount', () => {
@@ -225,6 +250,52 @@ describe('getDefaultTempoBpm', () => {
     document.body.appendChild(container)
     const { osmd } = await loadScore(container, compoundXml)
     expect(getDefaultTempoBpm(osmd)).toBe(80)
+  })
+})
+
+describe('buildExpectedTimeline dense tuplets', () => {
+  // Real-world worst case named in docs/coaching-gaps.md: heavy 16th-note-triplet
+  // writing (Olympic Procession, Space Shuttle Blues, Hungarian Rhapsody No. 2).
+  // This fixture stress-tests the extreme end of that -- four back-to-back
+  // 16th-note triplets on one *repeated* pitch, ~83ms apart at 120 BPM, with no
+  // pitch variation to disambiguate onsets. Confirms both that OSMD's tuplet
+  // timing (time-modification) comes through buildExpectedTimeline correctly,
+  // and that NoteMatcher's nearest-onset matching (see matcher.test.ts) holds up
+  // end-to-end against a real dense-tuplet timeline, not just hand-picked onsets.
+  const tupletXml = readFileSync(resolve(__dirname, './__fixtures__/dense-tuplets.musicxml'), 'utf-8')
+
+  it('spaces four 16th-note-triplet onsets evenly at ~83ms apart at 120 BPM', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const { osmd } = await loadScore(container, tupletXml)
+    const events = buildExpectedTimeline(osmd, { startMeasure: 1, endMeasure: 1 }, 120)
+
+    // 12 tuplet notes + 2 trailing quarter notes.
+    expect(events).toHaveLength(14)
+    const tupletOnsets = events.slice(0, 12).map((e) => e.onsetSec)
+    for (let i = 1; i < tupletOnsets.length; i++) {
+      expect(tupletOnsets[i] - tupletOnsets[i - 1]).toBeCloseTo(1 / 12, 2) // 250ms eighth / 3 = ~83.3ms
+    }
+  })
+
+  it('matches every note correctly when played in order with realistic timing jitter', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const { osmd } = await loadScore(container, tupletXml)
+    const events = buildExpectedTimeline(osmd, { startMeasure: 1, endMeasure: 1 }, 120)
+
+    const matcher = new NoteMatcher(events)
+    // Deterministic jitter within a real player's timing wobble, alternating
+    // direction so it never simply cancels out to "always early" or "always late".
+    const jitterSec = [0, 0.02, -0.015, 0.01, -0.02, 0.015, 0, -0.01, 0.02, -0.015, 0.01, 0, 0, 0]
+    events.forEach((event, i) => {
+      const midi = event.midiNumbers[0]
+      const result = matcher.noteOn(midi, event.onsetSec + jitterSec[i])
+      expect(result.expectedOnsetSec).toBeCloseTo(event.onsetSec, 6)
+    })
+
+    const { aggregate } = matcher.finalize()
+    expect(aggregate).toMatchObject({ expected: 14, correct: 14, missed: 0, extra: 0 })
   })
 })
 

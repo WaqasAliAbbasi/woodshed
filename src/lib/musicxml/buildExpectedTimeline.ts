@@ -20,10 +20,14 @@ export type HandFilter = 'both' | 'right' | 'left'
  * same global staff ordering. Anything below staff 0 counts as the left
  * hand; pieces with more than two staves aren't a case this app expects.
  */
+/** Which hand a note belongs to, by the same staff-position rule matchesHand uses. */
+function noteHand(note: Note): 'left' | 'right' {
+  return note.ParentStaff.idInMusicSheet === 0 ? 'right' : 'left'
+}
+
 function matchesHand(note: Note, handFilter: HandFilter): boolean {
   if (handFilter === 'both') return true
-  const staffIndex = note.ParentStaff.idInMusicSheet
-  return handFilter === 'right' ? staffIndex === 0 : staffIndex > 0
+  return noteHand(note) === handFilter
 }
 
 /** Number of staves in the piece — used to decide whether hand-isolated practice is even offered (nothing to isolate with only one staff). */
@@ -230,6 +234,7 @@ export function buildExpectedTimeline(
         durationSec,
         midiNumbers: pairs.map(({ note }) => halfToneToMidi(note.halfTone)),
         graphicalNotes: pairs.map(({ gNote }) => gNote),
+        hands: pairs.map(({ note }) => noteHand(note)),
         measureNumber,
       })
     }

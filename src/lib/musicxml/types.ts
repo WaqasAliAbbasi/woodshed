@@ -9,6 +9,8 @@ export interface ExpectedChordEvent {
   midiNumbers: number[]
   /** Parallel to midiNumbers — the on-screen note each pitch corresponds to, for coloring feedback. */
   graphicalNotes: GraphicalNote[]
+  /** Parallel to midiNumbers — which hand each note belongs to (see buildExpectedTimeline's noteHand), for the post-attempt left/right balance metric. */
+  hands: ('left' | 'right')[]
   /** 1-indexed measure number this chord belongs to, for UI highlighting. */
   measureNumber: number
 }

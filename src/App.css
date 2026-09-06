@@ -508,6 +508,24 @@
   background: var(--accent);
 }
 
+.stat-bar-balance {
+  display: flex;
+}
+
+.stat-bar-balance-left,
+.stat-bar-balance-right {
+  display: block;
+  height: 100%;
+}
+
+.stat-bar-balance-left {
+  background: var(--pine);
+}
+
+.stat-bar-balance-right {
+  background: var(--accent);
+}
+
 .stamp {
   align-self: flex-start;
   font-family: var(--font-display);
@@ -754,6 +772,11 @@
 .piece-composer {
   color: var(--muted);
   font-size: 0.85rem;
+}
+
+.piece-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .piece-delete {

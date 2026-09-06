@@ -8,9 +8,9 @@ function mockGraphicalNote(label: string): GraphicalNote {
   return { label } as unknown as GraphicalNote
 }
 
-function event(onsetSec: number, midiNumbers: number[]): ExpectedChordEvent {
+function event(onsetSec: number, midiNumbers: number[], hands?: ('left' | 'right')[]): ExpectedChordEvent {
   const graphicalNotes = midiNumbers.map((midi, i) => mockGraphicalNote(`m${midi}#${i}`))
-  return { onsetSec, durationSec: 0.5, midiNumbers, graphicalNotes, measureNumber: 1 }
+  return { onsetSec, durationSec: 0.5, midiNumbers, graphicalNotes, hands: hands ?? midiNumbers.map(() => 'right'), measureNumber: 1 }
 }
 
 describe('NoteMatcher', () => {
@@ -146,6 +146,38 @@ describe('NoteMatcher', () => {
     const matcher = new NoteMatcher([event(1.0, [60])])
     const result = matcher.noteOn(61, 1.0)
     expect(result.graphicalNote).toBeUndefined()
+  })
+
+  it('carries the played velocity and expected hand onto a matched result', () => {
+    const matcher = new NoteMatcher([event(1.0, [60], ['left'])])
+    const result = matcher.noteOn(60, 1.0, 100)
+    expect(result.velocity).toBe(100)
+    expect(result.hand).toBe('left')
+  })
+
+  it('carries the played velocity onto an extra (wrong) note but no hand', () => {
+    const matcher = new NoteMatcher([event(1.0, [60], ['left'])])
+    const result = matcher.noteOn(61, 1.0, 45)
+    expect(result.velocity).toBe(45)
+    expect(result.hand).toBeUndefined()
+  })
+
+  it('carries the expected hand onto a missed note, with no velocity (never played)', () => {
+    const matcher = new NoteMatcher([event(1.0, [60], ['right'])])
+    const missed = matcher.sweepMissed(2.0)
+    expect(missed[0].hand).toBe('right')
+    expect(missed[0].velocity).toBeUndefined()
+  })
+
+  it('attributes each hand of a doubled unison pitch to the correct hand, not just in push order', () => {
+    // Same pitch in both hands at once (e.g. an octave-doubled unison) — the
+    // multiset must keep hand tags aligned with their own graphical note, not
+    // just hand out whichever pitch match happens to be popped first.
+    const matcher = new NoteMatcher([event(1.0, [60, 60], ['left', 'right'])])
+    const first = matcher.noteOn(60, 1.0, 90)
+    const second = matcher.noteOn(60, 1.0, 60)
+    const hands = [first.hand, second.hand].sort()
+    expect(hands).toEqual(['left', 'right'])
   })
 
   it('a repeated pitch at closely-spaced onsets (dense tuplets) still matches the nearer onset, not an adjacent one', () => {

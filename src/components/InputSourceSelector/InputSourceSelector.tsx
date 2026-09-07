@@ -70,16 +70,16 @@ export function InputSourceSelector({ midi }: { midi: UseMidiInputResult }) {
       </fieldset>
 
       {!midi.supported && (
-        <div className="banner banner-warning">
-          Web MIDI isn't supported in this browser — computer keyboard input only.{' '}
+        <p className="practice-hint">
+          No Web MIDI here — using the computer keyboard.{' '}
           {isIOS() ? (
             <>
-              No browser on iOS/iPadOS supports Web MIDI, including Safari — install{' '}
+              Install{' '}
               <a href={MIDIWEB_BROWSER_URL} target="_blank" rel="noopener noreferrer">
                 MIDIWeb Browser
-              </a>
-              , then {typeof navigator.share === 'function' ? 'share this page into it' : 'open this page there'} to
-              connect a MIDI device.
+              </a>{' '}
+              and {typeof navigator.share === 'function' ? 'share this page into it' : 'open this page there'} for a
+              MIDI device.
               {typeof navigator.share === 'function' && (
                 <>
                   {' '}
@@ -92,7 +92,7 @@ export function InputSourceSelector({ midi }: { midi: UseMidiInputResult }) {
           ) : (
             'Use Chrome, Edge, or Firefox 108+ to play with a MIDI device.'
           )}
-        </div>
+        </p>
       )}
 
       {midi.keyboardEnabled && <KeyboardLegend />}

@@ -4,11 +4,13 @@ import { listSectionsForPiece } from '../../lib/db/sectionsRepo'
 import type { Attempt, Section } from '../../lib/db/db'
 import { suggestNextStep } from '../../lib/coach/suggestNextStep'
 import { summarizeSectionProgress } from '../../lib/coach/pieceProgress'
+import { ConfirmDialog } from '../ConfirmDialog/ConfirmDialog'
 
 export function HistoryView({ pieceId, refreshKey }: { pieceId: string; refreshKey: number }) {
   const [loaded, setLoaded] = useState<
     { pieceId: string; attempts: Attempt[]; sectionById: Map<string, Section> } | undefined
   >(undefined)
+  const [pendingDelete, setPendingDelete] = useState<Attempt | undefined>(undefined)
 
   useEffect(() => {
     let cancelled = false
@@ -26,7 +28,7 @@ export function HistoryView({ pieceId, refreshKey }: { pieceId: string; refreshK
   }, [pieceId, refreshKey])
 
   const handleDelete = async (attempt: Attempt) => {
-    if (!window.confirm(`Delete this attempt from ${new Date(attempt.timestamp).toLocaleString()}?`)) return
+    setPendingDelete(undefined)
     await deleteAttempt(attempt.id)
     setLoaded((current) =>
       current && current.pieceId === pieceId
@@ -78,13 +80,21 @@ export function HistoryView({ pieceId, refreshKey }: { pieceId: string; refreshK
                 type="button"
                 className="attempt-delete"
                 aria-label={`Delete attempt from ${new Date(attempt.timestamp).toLocaleString()}`}
-                onClick={() => void handleDelete(attempt)}
+                onClick={() => setPendingDelete(attempt)}
               >
                 Delete
               </button>
             </li>
           ))}
         </ul>
+      )}
+
+      {pendingDelete && (
+        <ConfirmDialog
+          message={`Delete this attempt from ${new Date(pendingDelete.timestamp).toLocaleString()}?`}
+          onConfirm={() => void handleDelete(pendingDelete)}
+          onCancel={() => setPendingDelete(undefined)}
+        />
       )}
     </>
   )

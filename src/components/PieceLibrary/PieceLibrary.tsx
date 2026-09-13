@@ -6,11 +6,13 @@ import { decompressMxl } from '../../lib/musicxml/loadMxl'
 import { parseMusicXmlMetadata } from '../../lib/musicxml/parseMetadata'
 import { isIOS } from '../../lib/platform'
 import { buildPieceStatsMap, formatDuration, formatPracticeDate, sortPiecesByRecency, type PieceStats } from '../../lib/pieceStats'
+import { ConfirmDialog } from '../ConfirmDialog/ConfirmDialog'
 
 export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void }) {
   const [pieces, setPieces] = useState<Piece[]>([])
   const [statsByPieceId, setStatsByPieceId] = useState<Map<string, PieceStats>>(new Map())
   const [error, setError] = useState<string | undefined>(undefined)
+  const [pendingDelete, setPendingDelete] = useState<Piece | undefined>(undefined)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const refresh = () =>
@@ -55,9 +57,7 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
   }
 
   const handleDelete = async (piece: Piece) => {
-    if (!window.confirm(`Delete "${piece.title}"? This also removes its sections and practice history.`)) {
-      return
-    }
+    setPendingDelete(undefined)
     setError(undefined)
     try {
       await deletePiece(piece.id)
@@ -90,7 +90,7 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
                 type="button"
                 className="piece-delete"
                 aria-label={`Delete ${piece.title}`}
-                onClick={() => void handleDelete(piece)}
+                onClick={() => setPendingDelete(piece)}
               >
                 Delete
               </button>
@@ -110,6 +110,14 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
         }}
       />
       {error && <div className="banner banner-error">{error}</div>}
+
+      {pendingDelete && (
+        <ConfirmDialog
+          message={`Delete "${pendingDelete.title}"? This also removes its sections and practice history.`}
+          onConfirm={() => void handleDelete(pendingDelete)}
+          onCancel={() => setPendingDelete(undefined)}
+        />
+      )}
     </div>
   )
 }

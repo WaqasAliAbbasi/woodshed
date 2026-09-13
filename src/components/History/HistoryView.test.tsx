@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { listAttemptsForPiece, recordAttempt } from '../../lib/db/attemptsRepo'
 import { resetDbConnectionForTests } from '../../lib/db/db'
 import { createPiece } from '../../lib/db/piecesRepo'
@@ -87,7 +87,6 @@ describe('HistoryView', () => {
     await recordAttempt({ sectionId: section.id, pieceId: piece.id, tempoBpm: 80, aborted: false, aggregate, noteResults: [] })
     await recordAttempt({ sectionId: section.id, pieceId: piece.id, tempoBpm: 100, aborted: false, aggregate, noteResults: [] })
 
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     const { container } = render(<HistoryView pieceId={piece.id} refreshKey={0} />)
     await act(async () => {})
 
@@ -100,9 +99,12 @@ describe('HistoryView', () => {
       deleteButtons[0].click()
     })
 
-    expect(confirmSpy).toHaveBeenCalled()
+    const confirmButton = container.querySelector<HTMLButtonElement>('.confirm-dialog-confirm')!
+    await act(async () => {
+      confirmButton.click()
+    })
+
     expect(await listAttemptsForPiece(piece.id)).toHaveLength(1)
-    confirmSpy.mockRestore()
   })
 
   it('does not delete when the confirmation is declined', async () => {
@@ -110,7 +112,6 @@ describe('HistoryView', () => {
     const section = await createSection({ pieceId: piece.id, label: 'Opening', startMeasure: 1, endMeasure: 4, defaultTempoBpm: 80 })
     await recordAttempt({ sectionId: section.id, pieceId: piece.id, tempoBpm: 80, aborted: false, aggregate, noteResults: [] })
 
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const { container } = render(<HistoryView pieceId={piece.id} refreshKey={0} />)
     await act(async () => {})
 
@@ -119,8 +120,12 @@ describe('HistoryView', () => {
       deleteButton.click()
     })
 
-    expect(confirmSpy).toHaveBeenCalled()
+    const cancelButton = container.querySelector<HTMLButtonElement>('.confirm-dialog-cancel')!
+    await act(async () => {
+      cancelButton.click()
+    })
+
+    expect(container.querySelector('.confirm-dialog')).toBeNull()
     expect(await listAttemptsForPiece(piece.id)).toHaveLength(1)
-    confirmSpy.mockRestore()
   })
 })

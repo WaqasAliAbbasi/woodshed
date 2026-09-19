@@ -21,9 +21,14 @@ export async function getPiece(id: string): Promise<Piece | undefined> {
   }
 }
 
-/** Returns a summary (no `musicXml`) — see PieceLibrary/App.tsx's RenamableTitle, which merges the new title into the `Piece` it already holds rather than replacing the object wholesale. */
-export async function renamePiece(id: string, title: string): Promise<PieceSummary> {
-  return apiPatch<PieceSummary>(`/api/pieces/${id}`, { title })
+/**
+ * Returns a summary (no `musicXml`) — see App.tsx's RenamableTitle /
+ * RenamableComposer, which merge the changed field(s) into the `Piece`
+ * they already hold rather than replacing the object wholesale. Omit
+ * `composer` to leave it unchanged; pass `''` to clear it.
+ */
+export async function updatePiece(id: string, updates: { title: string; composer?: string }): Promise<PieceSummary> {
+  return apiPatch<PieceSummary>(`/api/pieces/${id}`, updates)
 }
 
 export async function deletePiece(id: string): Promise<void> {

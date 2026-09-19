@@ -3,9 +3,10 @@ import './App.css'
 import { HistoryView } from './components/History/HistoryView'
 import { InputSourceSelector } from './components/InputSourceSelector/InputSourceSelector'
 import { useMidiInput } from './components/InputSourceSelector/useMidiInput'
+import { McpInfoLink } from './components/McpInfo/McpInfo'
 import { PieceLibrary } from './components/PieceLibrary/PieceLibrary'
 import { flushOutbox } from './lib/db/attemptsRepo'
-import { renamePiece } from './lib/db/piecesRepo'
+import { updatePiece } from './lib/db/piecesRepo'
 import type { Piece } from './lib/db/db'
 
 // Pulls in OpenSheetMusicDisplay, by far the heaviest dependency in the
@@ -46,7 +47,7 @@ function RenamableTitle({ piece, onRenamed }: { piece: Piece; onRenamed: (piece:
       // merge just the fields that changed into the piece already held in
       // memory instead of replacing it wholesale, so the score currently
       // rendered isn't discarded by a rename.
-      const updated = await renamePiece(piece.id, title)
+      const updated = await updatePiece(piece.id, { title })
       onRenamed({ ...piece, title: updated.title, updatedAt: updated.updatedAt })
     }
     setEditing(false)
@@ -91,6 +92,71 @@ function RenamableTitle({ piece, onRenamed }: { piece: Piece; onRenamed: (piece:
   )
 }
 
+function RenamableComposer({ piece, onRenamed }: { piece: Piece; onRenamed: (piece: Piece) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(piece.composer ?? '')
+
+  const commit = async () => {
+    const composer = draft.trim()
+    if (composer !== (piece.composer ?? '')) {
+      // Same merge-not-replace approach as RenamableTitle's commit, above.
+      const updated = await updatePiece(piece.id, { title: piece.title, composer })
+      onRenamed({ ...piece, composer: updated.composer, updatedAt: updated.updatedAt })
+    }
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <span className="app-composer-edit">
+        <input
+          type="text"
+          value={draft}
+          placeholder="Composer"
+          autoFocus
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void commit()
+            if (e.key === 'Escape') setEditing(false)
+          }}
+          onBlur={() => void commit()}
+        />
+        <button type="button" onClick={() => void commit()}>
+          Save
+        </button>
+      </span>
+    )
+  }
+
+  return (
+    <p className="app-composer">
+      {piece.composer}
+      <button
+        type="button"
+        className="app-rename"
+        aria-label={piece.composer ? `Edit composer` : 'Add composer'}
+        onClick={() => {
+          setDraft(piece.composer ?? '')
+          setEditing(true)
+        }}
+      >
+        ✎
+      </button>
+    </p>
+  )
+}
+
+// A place for site-level links that aren't part of the practice flow
+// itself — MCP docs today, room for e.g. privacy/about later — kept out of
+// the header so it doesn't compete with the actual task at hand there.
+function AppFooter() {
+  return (
+    <footer className="app-footer">
+      <McpInfoLink />
+    </footer>
+  )
+}
+
 function LogoutButton() {
   return (
     <button
@@ -128,6 +194,7 @@ function App() {
           <LogoutButton />
         </header>
         <PieceLibrary onSelect={setPiece} />
+        <AppFooter />
       </main>
     )
   }
@@ -140,7 +207,7 @@ function App() {
         </button>
         <div className="app-title-block">
           <RenamableTitle piece={piece} onRenamed={setPiece} />
-          {piece.composer && <p className="app-composer">{piece.composer}</p>}
+          <RenamableComposer piece={piece} onRenamed={setPiece} />
         </div>
         <InputSourceSelector midi={midi} />
       </div>
@@ -158,6 +225,7 @@ function App() {
         <h2>Practice log</h2>
         <HistoryView pieceId={piece.id} refreshKey={historyRefreshKey} />
       </section>
+      <AppFooter />
     </main>
   )
 }

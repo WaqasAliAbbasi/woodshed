@@ -7,6 +7,17 @@
      content below it (e.g. the practice log) no matter how tall it gets.
      Falls back to the base 1.5rem when no deck is mounted (piece library view). */
   padding-bottom: calc(var(--practice-deck-height, 0px) + 1.5rem);
+  /* Sticky-footer-without-a-wrapper-div: a flex column whose *content*
+     box (this element is content-box, the default — deliberately not
+     switched to border-box, which would also narrow max-width's 640px
+     from a content width to a border width and reflow everything inside
+     it) fills the viewport net of its own padding above, so .app-footer's
+     margin-top: auto below pins it flush with the bottom of the screen on
+     a short page (e.g. an empty library) instead of one padding's worth
+     below it; on a tall page it's pushed down with everything else. */
+  min-height: calc(100vh - 3rem - var(--practice-deck-height, 0px));
+  display: flex;
+  flex-direction: column;
 }
 
 .panel {
@@ -76,6 +87,21 @@
   margin-left: auto;
 }
 
+.app-footer {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.app-footer .link-back {
+  margin-top: 0;
+  padding: 0.2rem 0;
+}
+
 .app-title-block {
   display: flex;
   flex-direction: column;
@@ -87,9 +113,28 @@
 }
 
 .app-composer {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   margin: 0;
   color: var(--muted);
   font-size: 0.85rem;
+}
+
+.app-composer .app-rename {
+  font-size: 0.85rem;
+}
+
+.app-composer-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.app-composer-edit input {
+  font-size: 0.85rem;
+  padding: 0.15rem 0.35rem;
+  border-radius: var(--radius-sm);
 }
 
 .app-title {
@@ -1126,4 +1171,55 @@
 
 .confirm-dialog-confirm:hover {
   opacity: 0.9;
+}
+
+/* ---------- MCP info dialog ---------- */
+
+.mcp-info-dialog {
+  max-width: 480px;
+  text-align: left;
+}
+
+.mcp-info-dialog h3 {
+  margin: 0 0 0.75rem;
+  font-family: var(--font-display);
+}
+
+.mcp-info-dialog code {
+  background: var(--surface-hover);
+  border-radius: var(--radius-sm);
+  padding: 0.05rem 0.3rem;
+  font-size: 0.9em;
+}
+
+.mcp-info-label {
+  margin: 1rem 0 0.35rem;
+  font-weight: 600;
+}
+
+.mcp-info-tools {
+  margin: 0 0 1rem;
+  padding-left: 1.1rem;
+}
+
+.mcp-info-tools li {
+  margin-bottom: 0.3rem;
+}
+
+.mcp-info-note {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.mcp-info-steps {
+  margin: 0 0 1rem;
+  padding-left: 1.1rem;
+}
+
+.mcp-info-steps li {
+  margin-bottom: 0.4rem;
+}
+
+.mcp-info-url {
+  word-break: break-all;
 }

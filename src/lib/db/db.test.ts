@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { deleteAttempt, recordAttempt, listAttemptsForPiece, listAttemptsForSection } from './attemptsRepo'
 import { resetDbConnectionForTests } from './db'
 import { installFakeServer } from './__fixtures__/fakeServer'
-import { createPiece, deletePiece, getPiece, listPieces, renamePiece } from './piecesRepo'
+import { createPiece, deletePiece, getPiece, listPieces, updatePiece } from './piecesRepo'
 import { createSection, listSectionsForPiece } from './sectionsRepo'
 
 const sampleAggregate = {
@@ -114,10 +114,17 @@ describe('piecesRepo', () => {
 
   it('renames a piece and bumps updatedAt', async () => {
     const piece = await createPiece({ title: 'Old', filename: 't.musicxml', musicXml: '', measureCount: 1 })
-    const renamed = await renamePiece(piece.id, 'New Title')
+    const renamed = await updatePiece(piece.id, { title: 'New Title' })
     expect(renamed.title).toBe('New Title')
     expect(renamed.updatedAt).toBeGreaterThanOrEqual(piece.updatedAt)
     expect((await getPiece(piece.id))?.title).toBe('New Title')
+  })
+
+  it('updates a piece composer', async () => {
+    const piece = await createPiece({ title: 'Old', filename: 't.musicxml', musicXml: '', measureCount: 1 })
+    const updated = await updatePiece(piece.id, { title: piece.title, composer: 'J.S. Bach' })
+    expect(updated.composer).toBe('J.S. Bach')
+    expect((await getPiece(piece.id))?.composer).toBe('J.S. Bach')
   })
 })
 

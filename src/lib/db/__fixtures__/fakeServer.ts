@@ -47,9 +47,10 @@ export function installFakeServer() {
     if ((m = path.match(/^\/api\/pieces\/([^/]+)$/)) && method === 'PATCH') {
       const piece = pieces.get(m[1])
       if (!piece) return json({ error: 'Piece not found' }, 404)
-      const title = (body as { title?: string })?.title
+      const { title, composer } = body as { title?: string; composer?: string }
       if (title) {
         piece.title = title
+        if (composer !== undefined) piece.composer = composer.trim() || undefined
         piece.updatedAt = Date.now()
       }
       return json(pieceSummary(piece))

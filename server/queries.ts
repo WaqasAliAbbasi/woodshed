@@ -99,14 +99,22 @@ export function createPiece(db: DatabaseSync, userId: string, piece: Piece): voi
   )
 }
 
-export function renamePiece(db: DatabaseSync, userId: string, id: string, title: string): PieceSummary | undefined {
+/** `composer: undefined` leaves it unchanged; pass `null` explicitly to clear it. */
+export function updatePiece(
+  db: DatabaseSync,
+  userId: string,
+  id: string,
+  updates: { title: string; composer?: string | null },
+): PieceSummary | undefined {
   const updatedAt = Date.now()
-  const result = db.prepare('UPDATE pieces SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?').run(
-    title,
-    updatedAt,
-    id,
-    userId,
-  )
+  const result =
+    updates.composer === undefined
+      ? db
+          .prepare('UPDATE pieces SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+          .run(updates.title, updatedAt, id, userId)
+      : db
+          .prepare('UPDATE pieces SET title = ?, composer = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+          .run(updates.title, toParam(updates.composer), updatedAt, id, userId)
   if (result.changes === 0) return undefined
   return getPieceSummary(db, userId, id)
 }

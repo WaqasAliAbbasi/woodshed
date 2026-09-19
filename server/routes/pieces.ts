@@ -54,18 +54,22 @@ export function createPiecesRouter(db: DatabaseSync): Router {
     res.status(201).json(piece)
   })
 
-  // Rename only — the sole write PieceLibrary's UI currently makes to an
-  // existing piece. The response is a summary (no musicXml): the caller
-  // (RenamableTitle, see App.tsx) merges {title, updatedAt} into the piece
-  // it already holds rather than replacing the whole object, so the score
-  // already loaded in memory is never discarded on a rename.
+  // Title + composer — the only writes PieceLibrary's UI currently makes to
+  // an existing piece. The response is a summary (no musicXml): the caller
+  // (RenamableTitle/RenamableComposer, see App.tsx) merges the changed
+  // fields into the piece it already holds rather than replacing the whole
+  // object, so the score already loaded in memory is never discarded on an
+  // edit. `composer: ""` clears it (stored as SQL NULL); omitting the field
+  // entirely leaves it unchanged.
   router.patch('/api/pieces/:id', (req, res) => {
-    const title = (req.body as { title?: string } | undefined)?.title?.trim()
+    const body = req.body as { title?: string; composer?: string } | undefined
+    const title = body?.title?.trim()
     if (!title) {
       res.status(400).json({ error: 'title is required' })
       return
     }
-    const updated = queries.renamePiece(db, getUserId(req), req.params.id, title)
+    const composer = body?.composer === undefined ? undefined : body.composer.trim() || null
+    const updated = queries.updatePiece(db, getUserId(req), req.params.id, { title, composer })
     if (!updated) {
       res.status(404).json({ error: 'Piece not found' })
       return

@@ -46,11 +46,18 @@
   display: flex;
   align-items: flex-start;
   gap: 0.9rem;
+  /* At phone widths the title can't share a row with the input chip without
+     being crushed to a couple of characters — let the chip wrap to its own
+     line there instead (it keeps its right alignment via margin-left: auto). */
+  flex-wrap: wrap;
 }
 
 .link-back {
   background: none;
   border: none;
+  /* Never let the header row break this in half ("‹" over "Library"). */
+  white-space: nowrap;
+  flex-shrink: 0;
   padding: 0.3rem 0.2rem;
   margin-top: 0.2rem;
   color: var(--pine);
@@ -73,6 +80,10 @@
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
+  /* Takes the slack on a wide screen, and sets the floor that decides when
+     the chip wraps below rather than the title shrinking to nothing. */
+  flex: 1 1 10rem;
+  min-width: 0;
 }
 
 .app-composer {
@@ -140,9 +151,8 @@
   color: var(--success-text);
 }
 
-/* ---------- segmented controls (input source, hand filter, practice mode) ---------- */
+/* ---------- segmented controls (hand filter, practice mode) ---------- */
 
-.input-source-list,
 .hand-filter-control {
   display: flex;
   align-items: center;
@@ -156,7 +166,6 @@
   width: fit-content;
 }
 
-.input-source-label,
 .hand-filter-control legend {
   padding: 0;
   margin: 0 0.4rem 0 0.3rem;
@@ -165,7 +174,6 @@
   color: var(--muted);
 }
 
-.input-source,
 .hand-filter-option {
   display: inline-flex;
   align-items: center;
@@ -177,7 +185,6 @@
   white-space: nowrap;
 }
 
-.input-source:has(:checked),
 .hand-filter-option:has(:checked) {
   background: var(--bg);
   box-shadow: 0 1px 3px var(--shadow-color);
@@ -189,9 +196,120 @@
   cursor: default;
 }
 
-.midi-selector .keyboard-legend,
-.midi-selector > button,
-.midi-selector > select {
+/* ---------- input source chip + panel ---------- */
+
+/* Pushed to the far end of .app-header, opposite the ‹ Library link. */
+.input-chip-wrap {
+  position: relative;
+  margin-left: auto;
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
+.input-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 11rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.input-chip-warn {
+  border-color: var(--warning-text);
+  color: var(--warning-text);
+}
+
+.input-chip-icon {
+  font-size: 0.9rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* A device name can be arbitrarily long ("Roland Digital Piano MIDI 1") —
+   the chip truncates rather than pushing the piece title around. */
+.input-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.input-panel {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+  width: max-content;
+  /* Never wider than the app column, so it can't cause a horizontal scroll
+     on a phone no matter how long a device name or the iOS hint is. */
+  max-width: min(20rem, calc(100vw - 2rem));
+  padding: 0.85rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 20px var(--shadow-color);
+}
+
+.input-panel-heading {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.input-panel > select {
+  max-width: 100%;
+}
+
+.input-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.input-source-label {
+  padding: 0;
+  margin: 0 0 0.35rem;
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.input-source {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.input-panel-note {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.input-panel-note b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.key-map summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--accent-soft-text);
+}
+
+.key-map .keyboard-legend {
   margin-top: 0.5rem;
 }
 
@@ -736,6 +854,7 @@
 }
 
 .section-suggestions {
+  margin-top: 1.25rem;
   margin-bottom: 0.4rem;
 }
 

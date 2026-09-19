@@ -120,6 +120,30 @@ export function useMidiInput(): UseMidiInputResult {
     })
   }, [keyboardEnabled, selectedDeviceId, connected])
 
+  // Web MIDI needs a user gesture for a clean permission *prompt*, but not to
+  // re-use permission that's already been granted — so a returning user gets
+  // their device back on load instead of having to press "Connect MIDI Device"
+  // every visit. Deliberately only when the query says 'granted': asking
+  // outright on page load would pop a permission prompt nobody invited.
+  // The Permissions API's 'midi' descriptor is Chromium-only (Firefox rejects
+  // it, Safari has no navigator.permissions at all) — anywhere it doesn't
+  // answer, the Connect button stays as the way in.
+  useEffect(() => {
+    if (!isWebMidiSupported() || !navigator.permissions) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const status = await navigator.permissions.query({ name: 'midi' as PermissionName })
+        if (!cancelled && status.state === 'granted') await connect()
+      } catch {
+        // No 'midi' descriptor here; leave the Connect button to do the job.
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [connect])
+
   // Watch for the selected device disconnecting, and keep the device list fresh.
   useEffect(() => {
     const access = accessRef.current

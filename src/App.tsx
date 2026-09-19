@@ -142,9 +142,8 @@ function App() {
           <RenamableTitle piece={piece} onRenamed={setPiece} />
           {piece.composer && <p className="app-composer">{piece.composer}</p>}
         </div>
+        <InputSourceSelector midi={midi} />
       </div>
-
-      <InputSourceSelector midi={midi} />
 
       <Suspense fallback={<div className="panel">Loading practice tools…</div>}>
         <PracticeWorkspace

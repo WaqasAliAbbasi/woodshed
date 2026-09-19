@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { listAllAttempts } from '../../lib/db/attemptsRepo'
 import { createPiece, deletePiece, listPieces } from '../../lib/db/piecesRepo'
 import type { Piece } from '../../lib/db/db'
-import { decompressMxl } from '../../lib/musicxml/loadMxl'
 import { parseMusicXmlMetadata } from '../../lib/musicxml/parseMetadata'
 import { isIOS } from '../../lib/platform'
 import { buildPieceStatsMap, formatDuration, formatPracticeDate, sortPiecesByRecency, type PieceStats } from '../../lib/pieceStats'
@@ -38,7 +37,7 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
         return
       }
       const musicXml = ext === 'mxl'
-        ? await decompressMxl(await file.arrayBuffer())
+        ? await (await import('../../lib/musicxml/loadMxl')).decompressMxl(await file.arrayBuffer())
         : await file.text()
       const metadata = parseMusicXmlMetadata(musicXml)
       const piece = await createPiece({

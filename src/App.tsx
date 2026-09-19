@@ -1,13 +1,19 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import './App.css'
 import { HistoryView } from './components/History/HistoryView'
 import { InputSourceSelector } from './components/InputSourceSelector/InputSourceSelector'
 import { useMidiInput } from './components/InputSourceSelector/useMidiInput'
 import { PieceLibrary } from './components/PieceLibrary/PieceLibrary'
 import { PieceProgress } from './components/PieceProgress/PieceProgress'
-import { PracticeWorkspace } from './components/PracticeSession/PracticeWorkspace'
 import { renamePiece } from './lib/db/piecesRepo'
 import type { Piece } from './lib/db/db'
+
+// Pulls in OpenSheetMusicDisplay, by far the heaviest dependency in the
+// app, so it's kept out of the initial bundle and only fetched once a
+// piece is actually opened.
+const PracticeWorkspace = lazy(() =>
+  import('./components/PracticeSession/PracticeWorkspace').then((m) => ({ default: m.PracticeWorkspace })),
+)
 
 function WoodshedMark() {
   return (
@@ -111,12 +117,14 @@ function App() {
 
       <InputSourceSelector midi={midi} />
 
-      <PracticeWorkspace
-        piece={piece}
-        midi={midi}
-        progressRefreshKey={historyRefreshKey}
-        onAttemptRecorded={() => setHistoryRefreshKey((k) => k + 1)}
-      />
+      <Suspense fallback={<div className="panel">Loading practice tools…</div>}>
+        <PracticeWorkspace
+          piece={piece}
+          midi={midi}
+          progressRefreshKey={historyRefreshKey}
+          onAttemptRecorded={() => setHistoryRefreshKey((k) => k + 1)}
+        />
+      </Suspense>
 
       <section className="panel">
         <h2>Section progress</h2>

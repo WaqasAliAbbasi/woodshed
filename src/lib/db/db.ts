@@ -47,18 +47,13 @@ export interface Attempt {
 }
 
 interface WoodshedDbSchema extends DBSchema {
-  pieces: { key: string; value: Piece; indexes: { createdAt: number } }
-  sections: { key: string; value: Section; indexes: { pieceId: string } }
-  attempts: { key: string; value: Attempt; indexes: { sectionId: string; pieceId: string; timestamp: number } }
   /**
    * A write-behind outbox, not the app's source of truth anymore — the
    * server is (see `server/`). `recordAttempt` (attemptsRepo.ts) writes a
    * finished attempt here first and resolves immediately, so a slow or
    * dropped connection right after a practice session never strands the
    * UI; it's pushed to `/api/attempts` in the background and removed once
-   * acknowledged. `pieces`/`sections`/`attempts` above are no longer
-   * written to during normal use — they exist only so `export.ts` can still
-   * read whatever a browser stored before this server existed.
+   * acknowledged.
    */
   outbox: { key: string; value: Attempt }
 }
@@ -70,23 +65,12 @@ let dbPromise: Promise<IDBPDatabase<WoodshedDbSchema>> | undefined
 
 export function getDb(): Promise<IDBPDatabase<WoodshedDbSchema>> {
   dbPromise ??= openDB<WoodshedDbSchema>(DB_NAME, DB_VERSION, {
-    // `oldVersion`-gated so a browser upgrading from v1 doesn't try to
-    // recreate stores it already has (createObjectStore throws on a
-    // name that already exists) — only the new `outbox` store is added
-    // for those; a fresh browser gets both steps in one pass.
+    // A browser already past v1 has `pieces`/`sections`/`attempts` stores
+    // left over from before the server existed — createObjectStore isn't
+    // called for them here anymore since nothing writes or reads them, but
+    // they're harmless leftovers in those browsers' IndexedDB and not worth
+    // a migration step to delete.
     upgrade(db, oldVersion) {
-      if (oldVersion < 1) {
-        const pieces = db.createObjectStore('pieces', { keyPath: 'id' })
-        pieces.createIndex('createdAt', 'createdAt')
-
-        const sections = db.createObjectStore('sections', { keyPath: 'id' })
-        sections.createIndex('pieceId', 'pieceId')
-
-        const attempts = db.createObjectStore('attempts', { keyPath: 'id' })
-        attempts.createIndex('sectionId', 'sectionId')
-        attempts.createIndex('pieceId', 'pieceId')
-        attempts.createIndex('timestamp', 'timestamp')
-      }
       if (oldVersion < 2) {
         db.createObjectStore('outbox', { keyPath: 'id' })
       }

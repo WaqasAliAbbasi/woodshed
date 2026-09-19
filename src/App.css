@@ -1053,29 +1053,6 @@
   background: var(--danger-bg);
 }
 
-.piece-library-backup {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.9rem;
-  padding-top: 0.9rem;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.piece-library-backup button {
-  font: inherit;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 0.4rem 0.8rem;
-  cursor: pointer;
-}
-
-.piece-library-backup button:not(:disabled):hover {
-  background: var(--surface-hover);
-}
-
 .piece-upload::file-selector-button {
   font: inherit;
   color: var(--text);

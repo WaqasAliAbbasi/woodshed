@@ -21,7 +21,6 @@ import { createMcpRouter } from './mcp.ts'
 import { createConsentRouter } from './oauth/consent.ts'
 import { createOAuthProvider } from './oauth/provider.ts'
 import { createAttemptsRouter } from './routes/attempts.ts'
-import { createImportExportRouter } from './routes/importExport.ts'
 import { createPiecesRouter } from './routes/pieces.ts'
 import { createSectionsRouter } from './routes/sections.ts'
 import { mountSpaFallback, mountStaticAssets } from './static.ts'
@@ -126,7 +125,6 @@ app.use('/api', express.json({ limit: '15mb' }), requireSession(db))
 app.use(createPiecesRouter(db))
 app.use(createSectionsRouter(db))
 app.use(createAttemptsRouter(db))
-app.use(createImportExportRouter(db))
 
 // ---- MCP: OAuth 2.1 authorization server + the /mcp endpoint itself ----
 //

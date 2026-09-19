@@ -345,36 +345,3 @@ export function listRecentAttempts(
     }
   })
 }
-
-/** Full three-store snapshot for one user, in the shape `src/lib/db/export.ts` produces — the server-side half of the export/import/backup story. */
-export function exportAll(db: DatabaseSync, userId: string): { pieces: Piece[]; sections: Section[]; attempts: Attempt[] } {
-  const pieces = (db.prepare('SELECT * FROM pieces WHERE user_id = ?').all(userId) as unknown as PieceRow[]).map(pieceFromRow)
-  const sections = (db.prepare('SELECT * FROM sections WHERE user_id = ?').all(userId) as unknown as SectionRow[]).map(sectionFromRow)
-  const attempts = (db.prepare('SELECT * FROM attempts WHERE user_id = ?').all(userId) as unknown as AttemptRow[]).map(attemptFromRow)
-  return { pieces, sections, attempts }
-}
-
-/**
- * Bulk upsert for the one-time "upload my local history" migration and for
- * restoring a backup — everything in `doc` is attributed to `userId`
- * regardless of what it looked like in the source browser's IndexedDB
- * (which has no concept of users at all). Every record keyed by its
- * existing id, same idempotency guarantee as `recordAttempt`. Runs as one
- * transaction so a mid-import failure doesn't leave the library half-migrated.
- */
-export function importAll(
-  db: DatabaseSync,
-  userId: string,
-  doc: { pieces: Piece[]; sections: Section[]; attempts: Attempt[] },
-): void {
-  db.exec('BEGIN')
-  try {
-    for (const piece of doc.pieces) createPiece(db, userId, piece)
-    for (const section of doc.sections) createSection(db, userId, section)
-    for (const attempt of doc.attempts) recordAttempt(db, userId, attempt)
-    db.exec('COMMIT')
-  } catch (err) {
-    db.exec('ROLLBACK')
-    throw err
-  }
-}

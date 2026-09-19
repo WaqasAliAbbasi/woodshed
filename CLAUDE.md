@@ -5,9 +5,8 @@ what it does. Everything a user creates (uploaded pieces, practice sections,
 attempt history) is stored server-side in SQLite (`server/`), scoped per
 user (`users` table — this instance can be shared with more than one
 person). The browser's IndexedDB (`src/lib/db/db.ts`) is *not* the source
-of truth anymore — it's a write-behind outbox for finished attempts (see
-`attemptsRepo.ts`) plus the read path for `export.ts`/`import.ts`'s
-migration/backup tooling. Don't add a new client-side feature that expects
+of truth anymore — it's just a write-behind outbox for finished attempts
+(see `attemptsRepo.ts`). Don't add a new client-side feature that expects
 IndexedDB to hold real data; talk to `/api/*` instead (see `src/lib/api/client.ts`
 and the existing `*Repo.ts` files for the pattern).
 

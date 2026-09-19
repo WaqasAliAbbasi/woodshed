@@ -109,11 +109,10 @@ src/
     coach/              Turns attempt history into "what to practice next"
     streak.ts            Practice-streak calculation, shared with the MCP `streak` tool
     db/                 The `*Repo.ts` files (thin fetch wrappers over /api now — see
-                         server/), plus export.ts/import.ts (the IndexedDB-backed
-                         backup/migration path) and the IndexedDB outbox itself (db.ts)
+                         server/) and the IndexedDB outbox itself (db.ts)
     api/                 The fetch wrapper every repo goes through (client.ts)
 server/
-  routes/               REST API (pieces, sections, attempts, import/export)
+  routes/               REST API (pieces, sections, attempts)
   oauth/                 The MCP endpoint's own OAuth 2.1 authorization server
   auth/                  Username+password login, session cookies
   queries.ts              Shared SQLite data-access layer, used by both routes/ and mcp.ts

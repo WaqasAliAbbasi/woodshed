@@ -1,21 +1,49 @@
 name: woodshed
 
-# A static site — no state, no database, no secrets. The image is built in CI
-# and pushed to GHCR; this file only wires it into hub's traefik edge network.
-# See hub's docs/new-project.md.
+# Used to be "a static site — no state, no database, no secrets" here. Now
+# there's a backend (see server/): practice data lives server-side in
+# SQLite so it's reachable from a phone and from Claude over MCP, not just
+# from whichever browser profile uploaded it. Still no secrets file, though
+# — logins are per-user rows in the database (see scripts/createUser.ts),
+# not a shared password in the environment, and OAuth client credentials
+# for the MCP endpoint are generated and stored the same way.
 services:
   web:
-    # GHCR image names must be lowercase.
     image: ghcr.io/waqasaliabbasi/woodshed:${IMAGE_TAG}
     restart: always
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_PATH=/app/data/woodshed.db
+      # The real HTTPS origin — required, not just cosmetic: it's the MCP
+      # OAuth issuer/resource URL (RFC 8707), and the SDK's OAuth router
+      # rejects a non-HTTPS, non-localhost issuer outright (see
+      # server/oauth/provider.ts and mcpAuthRouter's own check).
+      - PUBLIC_URL=https://woodshed.waqasali.dev
+    volumes:
+      # Bind mount, not a named volume — hub's nightly backup only walks
+      # /srv/*/data, so a named volume would be invisible to it, and this is
+      # now the only copy of everyone's practice history.
+      - ./data:/app/data
+    # The image's own `node` user is uid 1000 — matches `deploy`, which is
+    # who the hub deploy workflow creates /srv/woodshed/data as (no sudo on
+    # that box), so this needs no chown step.
+    user: "1000:1000"
     labels:
       - traefik.enable=true
       - traefik.http.routers.woodshed.rule=Host(`woodshed.waqasali.dev`)
       - traefik.http.routers.woodshed.tls.certresolver=le
-      - traefik.http.services.woodshed.loadbalancer.server.port=80
+      - traefik.http.services.woodshed.loadbalancer.server.port=3000
+      # Not admin-auth@file / Traefik basic-auth in front: a basic-auth 401
+      # breaks the MCP OAuth handshake before it ever reaches this app —
+      # same reason ynab-mcp's compose.yml gives for skipping it. Login is
+      # handled inside the app instead (see server/auth/session.ts).
     networks:
       - edge
-    mem_limit: 128m
+    # A Node process + Express + SQLite is heavier than the old static
+    # Caddy container but still modest for a handful of users; doubled from
+    # the old 128m rather than tuned against real usage yet.
+    mem_limit: 256m
     security_opt:
       - no-new-privileges:true
 

@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# server's SQLite database (default DB_PATH, see server/env.ts) and its
+# WAL/SHM sidecar files — created on first boot, never committed. Same
+# reasoning as why the old IndexedDB data never lived in this repo either.
+/data/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

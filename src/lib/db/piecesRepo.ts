@@ -1,44 +1,31 @@
-import { getDb, type Piece } from './db'
-import { generateId } from '../id'
+import { apiDelete, apiGet, apiPatch, apiPost, isNotFound } from '../api/client'
+import type { Piece } from './db'
+
+/** What the server's `/api/pieces` list returns — everything but `musicXml`, which would make the library-list response scale with every score's XML at once. `getPiece` below still returns the full `Piece`. */
+export type PieceSummary = Omit<Piece, 'musicXml'>
 
 export async function createPiece(input: Omit<Piece, 'id' | 'createdAt' | 'updatedAt'>): Promise<Piece> {
-  const db = await getDb()
-  const now = Date.now()
-  const piece: Piece = { ...input, id: generateId(), createdAt: now, updatedAt: now }
-  await db.put('pieces', piece)
-  return piece
+  return apiPost<Piece>('/api/pieces', input)
 }
 
-export async function listPieces(): Promise<Piece[]> {
-  const db = await getDb()
-  return db.getAllFromIndex('pieces', 'createdAt')
+export async function listPieces(): Promise<PieceSummary[]> {
+  return apiGet<PieceSummary[]>('/api/pieces')
 }
 
 export async function getPiece(id: string): Promise<Piece | undefined> {
-  const db = await getDb()
-  return db.get('pieces', id)
+  try {
+    return await apiGet<Piece>(`/api/pieces/${id}`)
+  } catch (err) {
+    if (isNotFound(err)) return undefined
+    throw err
+  }
 }
 
-export async function renamePiece(id: string, title: string): Promise<Piece> {
-  const db = await getDb()
-  const piece = await db.get('pieces', id)
-  if (!piece) throw new Error(`Piece ${id} not found`)
-  const renamed: Piece = { ...piece, title, updatedAt: Date.now() }
-  await db.put('pieces', renamed)
-  return renamed
+/** Returns a summary (no `musicXml`) — see PieceLibrary/App.tsx's RenamableTitle, which merges the new title into the `Piece` it already holds rather than replacing the object wholesale. */
+export async function renamePiece(id: string, title: string): Promise<PieceSummary> {
+  return apiPatch<PieceSummary>(`/api/pieces/${id}`, { title })
 }
 
 export async function deletePiece(id: string): Promise<void> {
-  const db = await getDb()
-  const tx = db.transaction(['pieces', 'sections', 'attempts'], 'readwrite')
-  const [sections, attempts] = await Promise.all([
-    tx.objectStore('sections').index('pieceId').getAllKeys(id),
-    tx.objectStore('attempts').index('pieceId').getAllKeys(id),
-  ])
-  await Promise.all([
-    tx.objectStore('pieces').delete(id),
-    ...sections.map((key) => tx.objectStore('sections').delete(key)),
-    ...attempts.map((key) => tx.objectStore('attempts').delete(key)),
-  ])
-  await tx.done
+  return apiDelete(`/api/pieces/${id}`)
 }

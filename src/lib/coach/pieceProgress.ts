@@ -1,5 +1,9 @@
-import type { Attempt, Section } from '../db/db'
-import { classifyAccuracy, timingQuality, type SectionStatus } from './suggestNextStep'
+import type { Attempt, Section } from '../db/db.ts'
+// Explicit .ts extension (unlike most imports in this codebase) so this
+// module also resolves under Node's native ESM loader, not just Vite's
+// bundler resolution — server/mcp.ts imports it directly, unbundled, to
+// reuse this scoring logic instead of duplicating it server-side.
+import { classifyAccuracy, timingQuality, type SectionStatus } from './suggestNextStep.ts'
 
 export interface SectionProgress {
   section: Section

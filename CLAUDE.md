@@ -1,26 +1,43 @@
 # Woodshed
 
-A client-only React/TypeScript SPA — see `README.md` for what it does. No
-backend, no API, no server-side state. Everything a user creates (uploaded
-pieces, practice sections, attempt history) lives in the browser's
-IndexedDB (`src/lib/db/db.ts`, via the `idb` wrapper). Keep that in mind
-before reaching for a server-side solution to anything.
+A React/TypeScript SPA backed by a small Node server — see `README.md` for
+what it does. Everything a user creates (uploaded pieces, practice sections,
+attempt history) is stored server-side in SQLite (`server/`), scoped per
+user (`users` table — this instance can be shared with more than one
+person). The browser's IndexedDB (`src/lib/db/db.ts`) is *not* the source
+of truth anymore — it's a write-behind outbox for finished attempts (see
+`attemptsRepo.ts`) plus the read path for `export.ts`/`import.ts`'s
+migration/backup tooling. Don't add a new client-side feature that expects
+IndexedDB to hold real data; talk to `/api/*` instead (see `src/lib/api/client.ts`
+and the existing `*Repo.ts` files for the pattern).
 
 ## Commands
 
 ```bash
-npm run dev         # vite dev server, localhost only, plain HTTP
-npm run dev:https   # also binds the LAN + self-signed cert — needed to test
-                     # Web MIDI or PWA install from another device (e.g. an iPad)
-npm test            # vitest run
-npm run lint        # oxlint
-npx tsc -b          # typecheck (part of `npm run build`)
-npm run build       # tsc -b && vite build -> dist/
+npm run dev            # vite dev server, localhost only, plain HTTP
+npm run dev:https      # also binds the LAN + self-signed cert — needed to test
+                        # Web MIDI or PWA install from another device (e.g. an iPad)
+npm run server          # node server/index.ts — the backend, port 3000 by default
+npm run server:dev      # same, via `node --watch` for auto-restart
+npm test                # vitest run
+npm run lint             # oxlint (covers server/ and scripts/ too)
+npx tsc -b               # typecheck client + server + scripts (part of `npm run build`)
+npm run build            # tsc -b && vite build -> dist/, served by the server in production
+node scripts/createUser.ts <db-path> <username> <password>   # create a login
 ```
 
+`npm run dev` (the client) and `npm run server` (the backend) are two
+separate processes in local dev — Vite doesn't proxy `/api` to the server,
+so run both and point a browser at whichever one you're testing (the
+server also serves the *built* client from `dist/`, so `npm run build &&
+npm run server` exercises the real production path in one process).
+
 Test files are co-located as `*.test.ts`/`*.test.tsx` next to what they
-cover. MusicXML fixtures live in `src/lib/musicxml/__fixtures__/`. DB tests
-use `fake-indexeddb`.
+cover. MusicXML fixtures live in `src/lib/musicxml/__fixtures__/`. Tests for
+the `*Repo.ts` files mock the server via `src/lib/db/__fixtures__/fakeServer.ts`
+(an in-memory stand-in for `/api/*`) rather than hitting a real server;
+`recordAttempt`'s outbox write is the one thing that still uses real
+IndexedDB (`fake-indexeddb`) in those tests, since it still is one.
 
 ## Architecture
 
@@ -83,19 +100,63 @@ struggling/progressing/ready from fixed accuracy thresholds;
 `docs/coaching-gaps.md` for a written assessment of where this — and the
 scoring pipeline generally — still falls short pedagogically.
 
+**Server** (`server/`, plain TypeScript run unbundled via Node's native
+type-stripping — no build step, no `tsx`, see `index.ts`'s own comment):
+
+- `db.ts` + `schema.sql` — `node:sqlite` (not `better-sqlite3`: the client
+  Dockerfile's `npm ci --ignore-scripts` would silently skip a native
+  addon's compile step). Schema is applied idempotently at boot
+  (`CREATE TABLE IF NOT EXISTS` throughout) — there's no migration
+  framework; a real schema change against live data needs an actual
+  expand/contract step added to `schema.sql`, not an in-place edit.
+- `queries.ts` — the one data-access layer both `routes/` (REST) and
+  `mcp.ts` (MCP tools) call into. Every function takes `userId` and every
+  query is scoped by it; there's deliberately no "fetch this row by id,
+  unscoped" function anywhere in the file.
+- `auth/session.ts` — username+password login (`users` table). Signup is
+  open (`POST /api/signup`, rate-limited — see index.ts); `createUser`/
+  `validateNewUser` here are the shared logic both that route and
+  `scripts/createUser.ts`'s command-line path call into, so there's exactly
+  one place a `users` row ever gets inserted. Login itself is an opaque
+  session token in an HttpOnly cookie; `requireSession` middleware sets
+  `req.userId`, `getUserId(req)` is how routes read it back.
+- `oauth/` + `mcp.ts` — this app *is* the OAuth 2.1 authorization server
+  for its own `/mcp` endpoint (via `@modelcontextprotocol/sdk`'s
+  `mcpAuthRouter`), not a resource server pointed at someone else's. A
+  client (Claude.ai) registers itself through Dynamic Client Registration;
+  `/oauth/consent` is where a logged-in user approves it, which is also the
+  only place a user id enters the OAuth code/token chain (see
+  `provider.ts`'s doc comment on why `authorize()` itself can't check the
+  session cookie). Deliberately read-only tools — reuses
+  `summarizeSectionProgress`/`computeStreak`/etc. directly from
+  `src/lib/coach/` and `src/lib/streak.ts` rather than duplicating that
+  logic, which is why those modules use explicit `.ts` import extensions
+  unlike the rest of the client codebase (Node's ESM loader needs them;
+  Vite doesn't care either way).
+- No Traefik/`admin-auth@file` basic-auth in front of any of this (see
+  `compose.yml`) — a basic-auth 401 would break the MCP OAuth handshake
+  before it ever reached the app.
+
 ## Things worth knowing before changing code
 
 - **iOS/iPadOS has no Web MIDI support in any browser, Safari included.**
   `lib/platform.ts`'s `isIOS()` and the computer-keyboard fallback
   (`InputSourceSelector`) exist because of this, not as a nice-to-have —
   don't assume Web MIDI is always available.
-- **The IndexedDB schema is real user data**, not a fixture — this app is
-  live (see `compose.yml`) and stores pieces/sections/attempts entirely
-  client-side with no server backup. A schema change needs a version bump
-  and an `upgrade()` migration path in `db.ts`, not a breaking rewrite.
-  Several fields (`Section.handFilter`, `Section.mode`,
-  `Attempt.durationMs`) are optional specifically because older stored
-  records predate them.
+- **The SQLite database is real user data**, not a fixture — this app is
+  live (see `compose.yml`) and `server/schema.sql` is the source of truth
+  now. It's bind-mounted at `./data` specifically so hub's nightly backup
+  (which only walks `/srv/*/data`) can see it; a named volume would be
+  invisible to that backup. Several `Attempt`/`Section` fields
+  (`handFilter`, `mode`, `durationMs`) are still optional client-side types
+  because they're absent on records that predate a feature — that history
+  didn't change shape when it moved server-side, only where it lives.
+- **The client's IndexedDB still holds a real, if smaller, promise**: every
+  attempt written there via the outbox (`attemptsRepo.ts`) must eventually
+  reach the server, or it's lost the moment that browser's storage is
+  cleared. `DB_VERSION` bumps there still need the same care as before
+  (`db.ts`'s `upgrade()`, gated on `oldVersion`) — it's a smaller surface
+  now, not a deprecated one.
 - **No responsive breakpoints existed before the iPad-landscape fix** — the
   layout (`App.css`) is a single fixed-width column by default. If you add
   UI, check it at both a phone-portrait width and a landscape-tablet width

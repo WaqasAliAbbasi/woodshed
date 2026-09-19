@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { listAttemptsForPiece, recordAttempt } from '../../lib/db/attemptsRepo'
 import { resetDbConnectionForTests } from '../../lib/db/db'
+import { installFakeServer } from '../../lib/db/__fixtures__/fakeServer'
 import { createPiece } from '../../lib/db/piecesRepo'
 import { createSection } from '../../lib/db/sectionsRepo'
 import { HistoryView } from './HistoryView'
@@ -30,7 +31,15 @@ function render(element: React.ReactElement): { container: HTMLDivElement; root:
   return { container, root }
 }
 
+// HistoryView's data calls (listAttemptsForPiece, listSectionsForPiece) are
+// fetch wrappers over server/ now — see db.ts's doc comment — so this
+// stands in for the real HTTP API. recordAttempt's outbox write is the one
+// thing here that still touches real IndexedDB (via fake-indexeddb), reset
+// alongside it below.
+const fakeServer = installFakeServer()
+
 beforeEach(async () => {
+  fakeServer.reset()
   await resetDbConnectionForTests()
   await new Promise<void>((resolve, reject) => {
     const request = indexedDB.deleteDatabase('woodshed-v2')

@@ -52,14 +52,18 @@ seeing their library or theirs seeing yours.
 ```bash
 npm install
 node scripts/createUser.ts ./data/woodshed.db yourname 'a password'
-npm run server    # in one terminal — the backend, http://localhost:3000
-npm run dev       # in another — the Vite dev server, http://localhost:5173
+npm run dev       # http://localhost:5173
 ```
 
-The client and server are two separate processes in dev (Vite doesn't proxy
-`/api` to the server) — open the Vite URL, and it talks to the server on
-:3000. `createUser.ts` needs to run once, against whatever `DB_PATH` the
-server will use (`./data/woodshed.db` by default), before you can log in.
+`npm run dev` runs the Vite dev server and the backend (`:3000`) together
+as one command (see `package.json` — `concurrently`, and `vite.config.ts`'s
+`server.proxy`, which forwards `/api`, `/login`, `/signup`, `/oauth`,
+`/mcp`, and `/.well-known` from the Vite origin to the backend, so the
+browser only ever talks to `:5173` and the session cookie sticks to that
+one origin). Run just the client with `npm run dev:client`, or just the
+backend with `npm run server:dev`, if you need them separately.
+`createUser.ts` needs to run once, against whatever `DB_PATH` the server
+will use (`./data/woodshed.db` by default), before you can log in.
 
 Web MIDI requires a "secure context" (HTTPS, or `localhost`). Plain `npm run
 dev` is fine on the machine you're developing on. To test from another

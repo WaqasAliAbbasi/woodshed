@@ -13,9 +13,13 @@ and the existing `*Repo.ts` files for the pattern).
 ## Commands
 
 ```bash
-npm run dev            # vite dev server, localhost only, plain HTTP
-npm run dev:https      # also binds the LAN + self-signed cert — needed to test
-                        # Web MIDI or PWA install from another device (e.g. an iPad)
+npm run dev            # vite + backend together (concurrently), localhost only, plain HTTP —
+                        # vite.config.ts proxies /api, /login, /signup, /oauth, /mcp,
+                        # /.well-known to the backend so the browser only talks to :5173
+npm run dev:https      # same, but vite also binds the LAN + self-signed cert — needed to
+                        # test Web MIDI or PWA install from another device (e.g. an iPad)
+npm run dev:client     # vite only, no backend — /api/* calls will 404 unless something
+                        # else is serving the backend on :3000
 npm run server          # node server/index.ts — the backend, port 3000 by default
 npm run server:dev      # same, via `node --watch` for auto-restart
 npm test                # vitest run
@@ -25,11 +29,12 @@ npm run build            # tsc -b && vite build -> dist/, served by the server i
 node scripts/createUser.ts <db-path> <username> <password>   # create a login
 ```
 
-`npm run dev` (the client) and `npm run server` (the backend) are two
-separate processes in local dev — Vite doesn't proxy `/api` to the server,
-so run both and point a browser at whichever one you're testing (the
-server also serves the *built* client from `dist/`, so `npm run build &&
-npm run server` exercises the real production path in one process).
+Under the hood, the client and backend are still two separate processes —
+`npm run dev` just starts both (via `concurrently`) and proxies the
+backend's routes through Vite (`vite.config.ts`'s `server.proxy`), so the
+browser only ever needs to point at `:5173`. Point a browser at `:3000`
+directly only when exercising the real production path (`npm run build &&
+npm run server` serves the *built* client from `dist/`, no Vite involved).
 
 Test files are co-located as `*.test.ts`/`*.test.tsx` next to what they
 cover. MusicXML fixtures live in `src/lib/musicxml/__fixtures__/`. Tests for

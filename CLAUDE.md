@@ -85,10 +85,9 @@ directly produces systematically-wrong timing scores. The metronome itself
 sample-accurate regardless of JS timer jitter.
 
 **Coloring is a shared vocabulary, not a per-component choice.**
-`lib/theme.ts` exports `CORRECT_COLOR`/`WRONG_COLOR`/`MISTIMED_COLOR`/
-`PROGRESSING_COLOR`, used identically by live per-note feedback
-(`PracticeSession`) and the whole-piece progress heatmap (`ScoreViewer`) —
-green always means the same thing everywhere. In Metronome mode, notes are
+`lib/theme.ts` exports `CORRECT_COLOR`/`WRONG_COLOR`/`MISTIMED_COLOR`, used
+by live per-note feedback in `PracticeSession` — green always means the
+same thing everywhere. In Metronome mode, notes are
 *not* colored live as they're played (deliberately — see the comments in
 `PracticeSession`'s MIDI handler); they're all colored at once when the
 attempt finalizes, so the player stays focused on the music instead of
@@ -99,8 +98,9 @@ point.
 **Coaching** (`lib/coach/`) is a small rule-based layer, not anything
 learned: `classifyAccuracy` buckets an attempt into
 struggling/progressing/ready from fixed accuracy thresholds;
-`suggestNextStep` turns the most recent attempt into a one-line suggestion;
-`pieceProgress.ts` rolls per-section history up into the heatmap. See
+`pieceProgress.ts`'s `summarizeSectionProgress` rolls per-section history up
+into that status, surfaced as the stamp shown after each attempt
+(`PracticeSession`) and via the MCP `section_progress` tool. See
 `docs/coaching-gaps.md` for a written assessment of where this — and the
 scoring pipeline generally — still falls short pedagogically.
 

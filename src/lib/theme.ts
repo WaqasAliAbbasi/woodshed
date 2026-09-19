@@ -1,6 +1,5 @@
-/** Shared note-feedback colors — live per-note scoring (PracticeSession) and the piece-progress heatmap (ScoreViewer) both use these so "green" means the same thing everywhere in the app. */
+/** Shared note-feedback colors, used identically by live per-note scoring and the post-attempt stamp (both in PracticeSession) so "green" means the same thing everywhere in the app. */
 export const CORRECT_COLOR = '#5b7f52'
-export const PROGRESSING_COLOR = '#b8792e'
 export const WRONG_COLOR = '#a6472e'
 /** Metronome mode only: the right pitch, but outside the on-time window (early or late) — distinct from CORRECT_COLOR so a glance at the score shows exactly which notes were rushed or dragged, not just which were wrong. */
 export const MISTIMED_COLOR = '#b8792e'

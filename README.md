@@ -5,8 +5,8 @@ score, play along on a real MIDI keyboard, and get per-note pitch and timing
 feedback right on the sheet music. Practice happens on whatever machine is
 wired to your MIDI keyboard; a small backend (`server/`) keeps every piece,
 section, and attempt in one place so your history, streak, and progress are
-also reachable from a phone (`/dashboard`) or from Claude over MCP — not
-just from the browser you practiced in.
+also reachable from Claude over MCP — not just from the browser you
+practiced in.
 
 Live at [woodshed.waqasali.dev](https://woodshed.waqasali.dev). Log in is
 per-user — sign up at `/signup`, or a fresh account can be scripted with
@@ -36,10 +36,9 @@ seeing their library or theirs seeing yours.
   on-time in green, right pitch but early/late in amber, missed in red — so
   you can see exactly which notes need work, not just an aggregate score.
 - **Loop a section until it's ready**, track a coaching status
-  (struggling/progressing/ready) per section, and see a whole-piece progress
-  heatmap plus a history log of past attempts.
-- **Check your streak and progress from a phone** at `/dashboard` — a
-  read-only view (no piano needed) built from the same practice data.
+  (struggling/progressing/ready) shown after each attempt, and see a
+  history log of past attempts.
+- **See your current practice streak** at the top of your piece library.
 - **Let Claude read your practice history over MCP.** `/mcp` is a
   Streamable HTTP MCP server with `list_pieces`, `practice_history`,
   `streak`, and `section_progress` tools, authenticated via OAuth 2.1 — add

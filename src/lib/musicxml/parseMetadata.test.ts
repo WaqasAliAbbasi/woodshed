@@ -37,4 +37,11 @@ describe('parseMusicXmlMetadata', () => {
     const xml = '<score-partwise><work><work-title>  Padded  </work-title></work></score-partwise>'
     expect(parseMusicXmlMetadata(xml).title).toBe('Padded')
   })
+
+  it('decodes XML entities in title and composer', () => {
+    const xml =
+      '<score-partwise><work><work-title>Rock &amp; Roll</work-title></work>' +
+      '<identification><creator type="composer">Anderson-Lopez &amp; Lopez</creator></identification></score-partwise>'
+    expect(parseMusicXmlMetadata(xml)).toEqual({ title: 'Rock & Roll', composer: 'Anderson-Lopez & Lopez' })
+  })
 })

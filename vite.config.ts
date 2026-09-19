@@ -36,5 +36,20 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // Reuses one jsdom instance per worker instead of spinning up a fresh
+    // one per test file — file-level isolation (module registry, globals)
+    // is unaffected, this just avoids repeatedly paying jsdom's setup cost.
+    pool: 'vmThreads',
+    // OpenSheetMusicDisplay's SVG backend measures glyph/text width via
+    // SVGElement.getBBox(), which jsdom doesn't implement (it's a real
+    // layout engine's job) — VexFlow's stave-width calc comes back 0 far
+    // more often here than in a real browser, and OSMD logs a warning for
+    // every one (falling back to a width of 50 and continuing). Real
+    // browsers do implement getBBox(), so this is a jsdom-only artifact,
+    // not a rendering defect — filtered here rather than in loadScore.ts
+    // so a genuine OSMD warning in the actual app still surfaces normally.
+    onConsoleLog(log, type) {
+      if (type === 'stderr' && log.includes('SkyBottomLine')) return false
+    },
   },
 })

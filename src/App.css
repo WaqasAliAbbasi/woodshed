@@ -56,8 +56,6 @@
   color: var(--pine);
   font-weight: 600;
   font-size: 0.85rem;
-  /* Also used as an <a> (Dashboard's "Open Woodshed" link) alongside its
-     original <button> use — browsers underline links by default. */
   text-decoration: none;
   cursor: pointer;
 }
@@ -233,13 +231,6 @@
   cursor: pointer;
 }
 
-.viewer-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.4rem;
-}
-
 .zoom-control {
   display: flex;
   align-items: center;
@@ -275,27 +266,6 @@
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
-}
-
-.progress-legend {
-  display: flex;
-  gap: 1rem;
-  padding: 0.4rem 0;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.progress-legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.progress-swatch {
-  display: inline-block;
-  width: 0.7rem;
-  height: 0.7rem;
-  border-radius: 50%;
 }
 
 /* ---------- practice deck (control panel) ---------- */
@@ -744,7 +714,7 @@
   justify-content: center;
 }
 
-/* ---------- section progress shelf ---------- */
+/* ---------- auto-chopped candidate sections ---------- */
 
 .shelf {
   display: flex;
@@ -764,45 +734,6 @@
   gap: 0.25rem;
   background: var(--bg);
 }
-
-.tile-range {
-  font-weight: 600;
-  font-size: 0.85rem;
-}
-
-.tile-status {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-
-.tile-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.tile-meta {
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
-.tile-ready .tile-dot {
-  background: var(--pine);
-}
-
-.tile-progressing .tile-dot {
-  background: var(--accent);
-}
-
-.tile-struggling .tile-dot {
-  background: var(--danger-text);
-}
-
-/* ---------- auto-chopped candidate sections ---------- */
 
 .section-suggestions {
   margin-bottom: 0.4rem;
@@ -836,38 +767,6 @@
   border-left: 3px solid var(--accent);
   padding: 0.35rem 0.6rem;
   border-radius: var(--radius-sm);
-}
-
-.coach-suggestion {
-  background: var(--accent-soft-bg);
-  color: var(--accent-soft-text);
-  border-left: 3px solid var(--accent);
-  border-radius: var(--radius-sm);
-  padding: 0.5rem 0.75rem;
-  margin: 0.5rem 0 1rem;
-}
-
-.coach-headline {
-  font-weight: 600;
-  margin: 0;
-}
-
-.coach-detail {
-  margin: 0.25rem 0 0;
-  font-size: 0.9rem;
-}
-
-.coach-session-note {
-  margin: 0 0 0.35rem;
-  font-size: 0.8rem;
-  font-style: italic;
-  opacity: 0.85;
-}
-
-.coach-queue {
-  margin: 0.4rem 0 0;
-  font-size: 0.82rem;
-  opacity: 0.85;
 }
 
 /* ---------- practice log ---------- */
@@ -937,20 +836,18 @@
   background: var(--danger-bg);
 }
 
-/* ---------- dashboard (read-only phone view, see Dashboard.tsx) ---------- */
+/* ---------- practice streak (piece library header, see PieceLibrary.tsx) ---------- */
 
-.dashboard-streak {
-  text-align: center;
-}
-
-.dashboard-streak-figure {
+.streak-figure {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.1rem;
+  text-align: center;
+  margin-bottom: 1.2rem;
 }
 
-.dashboard-streak-number {
+.streak-number {
   font-family: var(--font-display);
   font-size: 3rem;
   font-weight: 700;
@@ -958,33 +855,15 @@
   line-height: 1;
 }
 
-.dashboard-streak-label {
+.streak-label {
   color: var(--muted);
   font-size: 0.9rem;
 }
 
-.dashboard-streak-best {
+.streak-best {
   color: var(--muted);
   font-size: 0.85rem;
-  margin: 0.6rem 0 0;
-}
-
-.dashboard-piece-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.dashboard-piece-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  padding: 0.7rem 0.2rem;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.dashboard-piece-row:first-child {
-  border-top: none;
+  margin-top: 0.6rem;
 }
 
 /* ---------- piece library ---------- */

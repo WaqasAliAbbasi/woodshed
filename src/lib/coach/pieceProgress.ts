@@ -21,12 +21,10 @@ function combinedScore(attempt: Attempt): number {
 }
 
 /**
- * Rolls up every attempt into one row per practiced section, struggling-first
- * — the practice priority queue `suggestNextStep` now builds its suggestion
- * from directly, instead of looking only at whichever section was attempted
- * most recently. Sections with no attempts yet (created but never actually
- * played, which shouldn't normally happen since `resolveSection` only runs
- * when an attempt starts) are omitted rather than shown as an empty row.
+ * Rolls up every attempt into one row per practiced section, struggling-first.
+ * Sections with no attempts yet (created but never actually played, which
+ * shouldn't normally happen since `resolveSection` only runs when an attempt
+ * starts) are omitted rather than shown as an empty row.
  */
 export function summarizeSectionProgress(sections: Section[], attempts: Attempt[]): SectionProgress[] {
   const attemptsBySection = new Map<string, Attempt[]>()

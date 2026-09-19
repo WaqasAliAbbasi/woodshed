@@ -1,9 +1,8 @@
 import type { OpenSheetMusicDisplay } from 'opensheetmusicdisplay'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { computeMeasureDifficulty, findWorstWindow } from '../../lib/coach/measureDifficulty'
 import { summarizeSectionProgress, type SectionProgress } from '../../lib/coach/pieceProgress'
 import { listAttemptsForPiece } from '../../lib/db/attemptsRepo'
-import type { Attempt, Piece } from '../../lib/db/db'
+import type { Piece } from '../../lib/db/db'
 import { listSectionsForPiece } from '../../lib/db/sectionsRepo'
 import { autoChopSections, type CandidateSection } from '../../lib/musicxml/autoChop'
 import { getStaffCount, type HandFilter } from '../../lib/musicxml/buildExpectedTimeline'
@@ -14,8 +13,6 @@ import { ScoreViewer } from '../ScoreViewer/ScoreViewer'
 import { PracticeSession } from './PracticeSession'
 
 const DEFAULT_RANGE_LENGTH_MEASURES = 4
-/** Window size "drill my problem measures" searches for — short enough to isolate the actual trouble spot rather than dragging in a whole surrounding phrase. */
-const DRILL_WINDOW_MEASURES = 2
 
 /**
  * Owns everything shared between the score view (where clicks happen) and
@@ -32,7 +29,7 @@ export function PracticeWorkspace({
 }: {
   piece: Piece
   midi: UseMidiInputResult
-  /** Bumped by the parent after every recorded attempt, so the progress heatmap picks up the new result. */
+  /** Bumped by the parent after every recorded attempt, so the section-progress stamp picks up the new result. */
   progressRefreshKey: number
   onAttemptRecorded: (sectionId: string) => void
 }) {
@@ -44,23 +41,18 @@ export function PracticeWorkspace({
   const [mode, setMode] = useState<PracticeMode>('metronome')
   const [staffCount, setStaffCount] = useState(1)
   const [progress, setProgress] = useState<SectionProgress[]>([])
-  const [showProgress, setShowProgress] = useState(false)
-  const [showMeasureDifficulty, setShowMeasureDifficulty] = useState(false)
-  const [attempts, setAttempts] = useState<Attempt[]>([])
   const [measureBounds, setMeasureBounds] = useState<{ first: number; last: number } | undefined>(undefined)
 
   const candidateSections = useMemo(
     () => (measureBounds ? autoChopSections(measureBounds.first, measureBounds.last) : []),
     [measureBounds],
   )
-  const measureDifficulty = useMemo(() => computeMeasureDifficulty(attempts), [attempts])
 
   useEffect(() => {
     let cancelled = false
     Promise.all([listSectionsForPiece(piece.id), listAttemptsForPiece(piece.id)]).then(([sections, pieceAttempts]) => {
       if (cancelled) return
       setProgress(summarizeSectionProgress(sections, pieceAttempts))
-      setAttempts(pieceAttempts)
     })
     return () => {
       cancelled = true
@@ -111,27 +103,6 @@ export function PracticeWorkspace({
     if (staffCount > 1) setHandFilter('right')
   }
 
-  const handleToggleProgress = () => {
-    setShowProgress((v) => !v)
-    setShowMeasureDifficulty(false)
-  }
-
-  const handleToggleMeasureDifficulty = () => {
-    setShowMeasureDifficulty((v) => !v)
-    setShowProgress(false)
-  }
-
-  // "Drill my problem measures": jump straight to the worst short window
-  // instead of hunting for it in the (already fine-grained) difficulty
-  // overlay by eye.
-  const handleDrillProblemMeasures = () => {
-    if (!measureBounds) return
-    const worst = findWorstWindow(measureDifficulty, DRILL_WINDOW_MEASURES, measureBounds.first, measureBounds.last)
-    if (!worst) return
-    setAnchorMeasure(undefined)
-    setRange(worst)
-  }
-
   const handleEditableChange = (nextEditable: boolean) => {
     setEditable(nextEditable)
     // Never let a half-made selection (one click, no second click yet)
@@ -143,23 +114,6 @@ export function PracticeWorkspace({
 
   return (
     <>
-      <div className="viewer-toolbar">
-        {progress.length > 0 && (
-          <button type="button" className="progress-toggle" onClick={handleToggleProgress}>
-            {showProgress ? 'Hide progress' : 'Show progress'}
-          </button>
-        )}
-        {measureDifficulty.length > 0 && (
-          <button type="button" className="progress-toggle" onClick={handleToggleMeasureDifficulty}>
-            {showMeasureDifficulty ? 'Hide trouble spots' : 'Show trouble spots'}
-          </button>
-        )}
-        {measureDifficulty.length > 0 && (
-          <button type="button" className="progress-toggle" onClick={handleDrillProblemMeasures}>
-            Drill my problem measures
-          </button>
-        )}
-      </div>
       {editable && candidateSections.length > 1 && (
         <div className="shelf section-suggestions">
           {candidateSections.map((section) => (
@@ -185,10 +139,6 @@ export function PracticeWorkspace({
         clickable={editable}
         onMeasureClick={handleMeasureClick}
         handFilter={handFilter}
-        progress={progress}
-        showProgress={showProgress}
-        measureDifficulty={measureDifficulty}
-        showMeasureDifficulty={showMeasureDifficulty}
       />
       {osmd && range && (
         <PracticeSession

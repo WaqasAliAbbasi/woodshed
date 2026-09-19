@@ -5,11 +5,13 @@ import type { Piece } from '../../lib/db/db'
 import { parseMusicXmlMetadata } from '../../lib/musicxml/parseMetadata'
 import { isIOS } from '../../lib/platform'
 import { buildPieceStatsMap, formatDuration, formatPracticeDate, sortPiecesByRecency, type PieceStats } from '../../lib/pieceStats'
+import { computeStreak, type StreakSummary } from '../../lib/streak'
 import { ConfirmDialog } from '../ConfirmDialog/ConfirmDialog'
 
 export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void }) {
   const [pieces, setPieces] = useState<PieceSummary[]>([])
   const [statsByPieceId, setStatsByPieceId] = useState<Map<string, PieceStats>>(new Map())
+  const [streak, setStreak] = useState<StreakSummary | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
   const [pendingDelete, setPendingDelete] = useState<PieceSummary | undefined>(undefined)
   const [openingPieceId, setOpeningPieceId] = useState<string | undefined>(undefined)
@@ -19,6 +21,7 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
     Promise.all([listPieces(), listAllAttempts()]).then(([loadedPieces, attempts]) => {
       setPieces(loadedPieces)
       setStatsByPieceId(buildPieceStatsMap(attempts))
+      setStreak(computeStreak(attempts))
     })
 
   useEffect(() => {
@@ -90,6 +93,16 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
 
   return (
     <div className="piece-library panel">
+      {streak && streak.lastPracticedDay !== undefined && (
+        <div className="streak-figure">
+          <span className="streak-number">{streak.current}</span>
+          <span className="streak-label">day{streak.current === 1 ? '' : 's'} current streak</span>
+          {streak.longest > streak.current && <span className="streak-best">Best streak: {streak.longest} days</span>}
+          {streak.current === 0 && (
+            <span className="streak-best">Last practiced {formatPracticeDate(streak.lastPracticedDay)} — get back to it!</span>
+          )}
+        </div>
+      )}
       <h2>Your pieces</h2>
       {pieces.length === 0 && <p>No pieces yet — upload a MusicXML file to get started.</p>}
       <ul>

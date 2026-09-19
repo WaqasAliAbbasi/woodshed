@@ -4,8 +4,6 @@ import { HistoryView } from './components/History/HistoryView'
 import { InputSourceSelector } from './components/InputSourceSelector/InputSourceSelector'
 import { useMidiInput } from './components/InputSourceSelector/useMidiInput'
 import { PieceLibrary } from './components/PieceLibrary/PieceLibrary'
-import { PieceProgress } from './components/PieceProgress/PieceProgress'
-import { Dashboard } from './components/Dashboard/Dashboard'
 import { flushOutbox } from './lib/db/attemptsRepo'
 import { renamePiece } from './lib/db/piecesRepo'
 import type { Piece } from './lib/db/db'
@@ -112,12 +110,6 @@ function LogoutButton() {
 function App() {
   const [piece, setPiece] = useState<Piece | undefined>(undefined)
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
-  // No client-side router — the app has exactly two top-level views (the
-  // piece library/practice workspace, and the read-only /dashboard). See
-  // CLAUDE.md: no responsive-breakpoint or routing infrastructure existed
-  // before the iPad fix either; a full router would be a lot of machinery
-  // for one extra path.
-  const [showDashboard] = useState(() => window.location.pathname.startsWith('/dashboard'))
   const midi = useMidiInput()
 
   // Sweeps up any attempt a previous session couldn't deliver — a closed
@@ -126,10 +118,6 @@ function App() {
   useEffect(() => {
     void flushOutbox()
   }, [])
-
-  if (showDashboard) {
-    return <Dashboard />
-  }
 
   if (!piece) {
     return (
@@ -166,11 +154,6 @@ function App() {
           onAttemptRecorded={() => setHistoryRefreshKey((k) => k + 1)}
         />
       </Suspense>
-
-      <section className="panel">
-        <h2>Section progress</h2>
-        <PieceProgress pieceId={piece.id} refreshKey={historyRefreshKey} />
-      </section>
 
       <section className="panel">
         <h2>Practice log</h2>

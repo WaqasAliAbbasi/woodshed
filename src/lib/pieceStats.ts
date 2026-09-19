@@ -7,8 +7,8 @@ export interface PieceStats {
   lastPracticedAt: number
 }
 
-/** Groups attempts by piece in one pass — avoids an N+1 query per piece in the library list. */
-export function buildPieceStatsMap(attempts: Attempt[]): Map<string, PieceStats> {
+/** Groups attempts by piece in one pass — avoids an N+1 query per piece in the library list. Takes just the three fields it reads, not a full `Attempt[]` — `listAllAttempts` (attemptsRepo.ts) fetches exactly this trimmed shape from `/api/attempts/summary` rather than every attempt's full noteResults for a library-wide list. */
+export function buildPieceStatsMap(attempts: Pick<Attempt, 'pieceId' | 'timestamp' | 'durationMs'>[]): Map<string, PieceStats> {
   const map = new Map<string, PieceStats>()
   for (const attempt of attempts) {
     const existing = map.get(attempt.pieceId)

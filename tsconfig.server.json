@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.server.tsbuildinfo",
+    "target": "es2023",
+    // DOM only because server/queries.ts type-only-imports HandFilter from
+    // src/lib/musicxml/buildExpectedTimeline.ts, and TS still opens and
+    // checks that whole file to resolve the type even though the import
+    // itself is erased entirely by Node's type-stripping at runtime — that
+    // file's *other* (non-type-only, unreachable from here) code happens to
+    // reference window/document. No server code ever runs in a DOM, so this
+    // only affects what tsc will and won't flag, not runtime behavior.
+    "lib": ["ES2023", "DOM"],
+    "module": "nodenext",
+    "types": ["node"],
+    "skipLibCheck": true,
+
+    /* Runs unbundled, directly on Node's native type-stripping — no build
+       step (see server/index.ts's own comment, and the Dockerfile). This
+       project reference exists purely so `npx tsc -b` (part of `npm run
+       build`, and CI's test.yml) typechecks server/ and scripts/ too;
+       nothing ever reads its output. */
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    /* Linting */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["server", "scripts"]
+}

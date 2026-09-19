@@ -1,7 +1,8 @@
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { deleteAttempt, recordAttempt, listAttemptsForPiece, listAttemptsForSection } from './attemptsRepo'
-import { getDb, resetDbConnectionForTests } from './db'
+import { resetDbConnectionForTests } from './db'
+import { installFakeServer } from './__fixtures__/fakeServer'
 import { createPiece, deletePiece, getPiece, listPieces, renamePiece } from './piecesRepo'
 import { createSection, listSectionsForPiece } from './sectionsRepo'
 
@@ -17,7 +18,17 @@ const sampleAggregate = {
   timingAccuracy: 1,
 }
 
+// These repos are thin fetch wrappers over `server/` now (see db.ts's doc
+// comment on why IndexedDB is only an outbox these days) — installFakeServer
+// stands in for the real HTTP API so this suite can still exercise
+// piecesRepo/sectionsRepo/attemptsRepo's actual request/response handling
+// without a running server. `recordAttempt`'s outbox write is the one thing
+// here that still touches real IndexedDB (via fake-indexeddb), so both are
+// reset between tests.
+const fakeServer = installFakeServer()
+
 beforeEach(async () => {
+  fakeServer.reset()
   await resetDbConnectionForTests()
   await new Promise<void>((resolve, reject) => {
     const request = indexedDB.deleteDatabase('woodshed-v2')
@@ -37,25 +48,20 @@ describe('piecesRepo', () => {
     expect(piece.id).toBeTruthy()
     const fetched = await getPiece(piece.id)
     expect(fetched?.title).toBe('Sonatina')
+    expect(fetched?.musicXml).toBe('<score-partwise/>')
   })
 
-  it('lists pieces ordered by createdAt', async () => {
-    // IndexedDB breaks ties on equal index values by primary key, not
-    // insertion order — since ids are random UUIDs, two pieces created
-    // within the same millisecond (as happens back-to-back in a fast test)
-    // would sort unpredictably unless createdAt actually differs.
-    // Warm up the connection first so its own internal Date.now() use (during
-    // the one-time open/upgrade transaction) doesn't consume a mocked value.
-    await getDb()
+  it('lists pieces ordered by createdAt, without musicXml', async () => {
     const nowSpy = vi.spyOn(Date, 'now')
     nowSpy.mockReturnValueOnce(1000)
-    const first = await createPiece({ title: 'First', filename: 'a.musicxml', musicXml: '', measureCount: 1 })
+    const first = await createPiece({ title: 'First', filename: 'a.musicxml', musicXml: 'xml-a', measureCount: 1 })
     nowSpy.mockReturnValueOnce(2000)
-    const second = await createPiece({ title: 'Second', filename: 'b.musicxml', musicXml: '', measureCount: 1 })
+    const second = await createPiece({ title: 'Second', filename: 'b.musicxml', musicXml: 'xml-b', measureCount: 1 })
     nowSpy.mockRestore()
 
     const pieces = await listPieces()
     expect(pieces.map((p) => p.id)).toEqual([first.id, second.id])
+    expect(pieces.every((p) => !('musicXml' in p))).toBe(true)
   })
 
   it('deletes a piece', async () => {
@@ -185,5 +191,26 @@ describe('attemptsRepo', () => {
 
     const remaining = await listAttemptsForPiece(piece.id)
     expect(remaining.map((a) => a.id)).toEqual([toKeep.id])
+  })
+
+  it('writes to the local outbox before the network push resolves, and clears it once acknowledged', async () => {
+    const piece = await createPiece({ title: 'P', filename: 'p.musicxml', musicXml: '', measureCount: 10 })
+    const section = await createSection({ pieceId: piece.id, label: 'Opening', startMeasure: 1, endMeasure: 4, defaultTempoBpm: 80 })
+
+    await recordAttempt({
+      sectionId: section.id,
+      pieceId: piece.id,
+      tempoBpm: 80,
+      aborted: false,
+      aggregate: sampleAggregate,
+      noteResults: [],
+    })
+
+    // The push already succeeded against the fake server by the time
+    // recordAttempt resolves (see attemptsRepo.ts), so the outbox should be
+    // empty again — flushOutbox() finding nothing left to retry.
+    const db = await (await import('./db')).getDb()
+    expect(await db.count('outbox')).toBe(0)
+    expect(fakeServer.attempts.size).toBe(1)
   })
 })

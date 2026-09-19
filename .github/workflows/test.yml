@@ -78,11 +78,26 @@ jobs:
 
       - name: Smoke test
         run: |
-          docker run -d --name woodshed-smoke -p 8080:80 woodshed:ci
+          # No env vars, no volume: DB_PATH and PUBLIC_URL both fall back to
+          # their defaults (see server/env.ts) — ephemeral SQLite inside the
+          # container, PUBLIC_URL http://localhost:3000. That's exempt from
+          # the MCP OAuth router's HTTPS-issuer check (see
+          # server/oauth/provider.ts's comment), so the server still boots
+          # cleanly with nothing configured, same as the old static image.
+          docker run -d --name woodshed-smoke -p 8080:3000 woodshed:ci
           for _ in $(seq 1 20); do
             if curl -fs http://localhost:8080/ >/dev/null 2>&1; then
               echo "index.html served."
               curl -fs http://localhost:8080/ | grep -q '<div id="root"></div>'
+              # /api/* must reject an unauthenticated request rather than
+              # ever falling through to the SPA fallback and serving HTML.
+              status=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/pieces)
+              if [ "$status" != "401" ]; then
+                echo "Expected 401 from /api/pieces, got $status"
+                docker logs woodshed-smoke
+                docker rm -f woodshed-smoke
+                exit 1
+              fi
               docker rm -f woodshed-smoke
               exit 0
             fi

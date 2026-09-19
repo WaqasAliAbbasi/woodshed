@@ -1,6 +1,6 @@
 import type { Note, OpenSheetMusicDisplay } from 'opensheetmusicdisplay'
-import { halfToneToMidi } from './pitchMapping'
-import type { ExpectedChordEvent, MeasureRange } from './types'
+import { halfToneToMidi } from './pitchMapping.ts'
+import type { ExpectedChordEvent, MeasureRange } from './types.ts'
 
 /** A note tied *from* a previous note is a continuation, not a new attack — skip it. */
 function isTiedContinuation(note: Note): boolean {

@@ -1,17 +1,16 @@
-import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { resetDbConnectionForTests } from './db'
+import { installFakeServer } from './__fixtures__/fakeServer'
 import { createPiece } from './piecesRepo'
 import { resolveSection } from './resolveSection'
 import { createSection, listSectionsForPiece } from './sectionsRepo'
 
-beforeEach(async () => {
-  await resetDbConnectionForTests()
-  await new Promise<void>((resolve, reject) => {
-    const request = indexedDB.deleteDatabase('woodshed-v2')
-    request.onsuccess = () => resolve()
-    request.onerror = () => reject(request.error)
-  })
+// sectionsRepo (which resolveSection is built on) is a fetch wrapper over
+// server/ now — see db.ts's doc comment — so this stands in for the real
+// HTTP API rather than exercising IndexedDB directly.
+const fakeServer = installFakeServer()
+
+beforeEach(() => {
+  fakeServer.reset()
 })
 
 const range = { startMeasure: 1, endMeasure: 4 }

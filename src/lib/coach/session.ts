@@ -1,4 +1,4 @@
-import type { Attempt } from '../db/db'
+import type { Attempt } from '../db/db.ts'
 
 export interface SessionSummary {
   /** Sum of durationMs across attempts recorded on the current calendar day (local time). Attempts predating duration tracking contribute 0 — see Attempt.durationMs. */

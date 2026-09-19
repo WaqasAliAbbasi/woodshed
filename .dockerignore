@@ -11,6 +11,10 @@ node_modules
 # Build output
 dist
 
+# Local dev database — never baked into the image, always written at
+# runtime past the bind mount (see compose.yml).
+data
+
 # Editors / local tooling
 **/.idea
 **/.vscode

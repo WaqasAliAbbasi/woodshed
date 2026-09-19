@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Log in — Woodshed</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --text: #26201a; --bg: #f6ecd9; --surface: #ecdbb8; --border: #d8c297;
+    --accent: #b8792e; --accent-text: #fff8ec; --danger-text: #7a2e18; --danger-bg: #f3dcd3;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --text: #efe3cc; --bg: #1c1712; --surface: #2a2015; --border: #40331f; --accent: #d79a4c; --accent-text: #241705; --danger-text: #e08b6d; --danger-bg: #3a2018; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 1.5rem;
+    display: flex; min-height: 100vh; align-items: center; justify-content: center;
+  }
+  .card { max-width: 320px; width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 1rem; }
+  label { display: block; font-size: 0.9rem; margin-bottom: 0.35rem; }
+  input[type="password"], input[type="text"] {
+    width: 100%; padding: 0.6rem 0.7rem; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); font-size: 1rem; margin-bottom: 1rem;
+  }
+  button {
+    width: 100%; padding: 0.65rem; border-radius: 8px; border: 1px solid var(--accent);
+    background: var(--accent); color: var(--accent-text); font-size: 1rem; cursor: pointer;
+  }
+  button:disabled { opacity: 0.6; cursor: default; }
+  .error { color: var(--danger-text); background: var(--danger-bg); border-radius: 8px; padding: 0.5rem 0.7rem; font-size: 0.9rem; margin-top: 0.9rem; }
+  .switch { text-align: center; font-size: 0.85rem; margin-top: 1rem; color: var(--muted, #6e5b40); }
+  .switch a { color: var(--accent); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Woodshed</h1>
+    <form id="login-form">
+      <label for="username">Username</label>
+      <input id="username" name="username" type="text" autocomplete="username" autofocus required />
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required />
+      <button id="submit" type="submit">Log in</button>
+      <p class="error" id="error" hidden></p>
+    </form>
+    <p class="switch">New here? <a href="/signup">Sign up</a></p>
+  </div>
+  <script>
+    const form = document.getElementById('login-form')
+    const errorEl = document.getElementById('error')
+    const submitEl = document.getElementById('submit')
+
+    function nextPath() {
+      const params = new URLSearchParams(location.search)
+      const next = params.get('next')
+      // Only ever follow a same-origin relative path — never redirect
+      // somewhere an open-redirect could send a logged-in session.
+      return next && next.startsWith('/') && !next.startsWith('//') ? next : '/'
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault()
+      errorEl.hidden = true
+      submitEl.disabled = true
+      try {
+        const username = document.getElementById('username').value
+        const password = document.getElementById('password').value
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ username, password }),
+        })
+        if (!res.ok) {
+          errorEl.textContent = res.status === 401 ? 'Wrong username or password.' : 'Something went wrong — try again.'
+          errorEl.hidden = false
+          submitEl.disabled = false
+          return
+        }
+        location.href = nextPath()
+      } catch {
+        errorEl.textContent = 'Could not reach the server — check your connection.'
+        errorEl.hidden = false
+        submitEl.disabled = false
+      }
+    })
+  </script>
+</body>
+</html>

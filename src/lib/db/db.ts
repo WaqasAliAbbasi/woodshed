@@ -1,6 +1,11 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
-import type { HandFilter } from '../musicxml/buildExpectedTimeline'
-import type { AttemptAggregate, PracticeMode, StoredNoteResult } from '../scoring/types'
+// Explicit .ts extensions on these two (unlike most imports in this
+// codebase) so this file also resolves under Node's native ESM loader, not
+// just Vite's bundler resolution — server/queries.ts imports it directly,
+// unbundled, reusing these types for the SQL row mapping instead of a
+// parallel set of DTOs.
+import type { HandFilter } from '../musicxml/buildExpectedTimeline.ts'
+import type { AttemptAggregate, PracticeMode, StoredNoteResult } from '../scoring/types.ts'
 
 export interface Piece {
   id: string
@@ -45,26 +50,46 @@ interface WoodshedDbSchema extends DBSchema {
   pieces: { key: string; value: Piece; indexes: { createdAt: number } }
   sections: { key: string; value: Section; indexes: { pieceId: string } }
   attempts: { key: string; value: Attempt; indexes: { sectionId: string; pieceId: string; timestamp: number } }
+  /**
+   * A write-behind outbox, not the app's source of truth anymore — the
+   * server is (see `server/`). `recordAttempt` (attemptsRepo.ts) writes a
+   * finished attempt here first and resolves immediately, so a slow or
+   * dropped connection right after a practice session never strands the
+   * UI; it's pushed to `/api/attempts` in the background and removed once
+   * acknowledged. `pieces`/`sections`/`attempts` above are no longer
+   * written to during normal use — they exist only so `export.ts` can still
+   * read whatever a browser stored before this server existed.
+   */
+  outbox: { key: string; value: Attempt }
 }
 
 const DB_NAME = 'woodshed-v2'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 let dbPromise: Promise<IDBPDatabase<WoodshedDbSchema>> | undefined
 
 export function getDb(): Promise<IDBPDatabase<WoodshedDbSchema>> {
   dbPromise ??= openDB<WoodshedDbSchema>(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      const pieces = db.createObjectStore('pieces', { keyPath: 'id' })
-      pieces.createIndex('createdAt', 'createdAt')
+    // `oldVersion`-gated so a browser upgrading from v1 doesn't try to
+    // recreate stores it already has (createObjectStore throws on a
+    // name that already exists) — only the new `outbox` store is added
+    // for those; a fresh browser gets both steps in one pass.
+    upgrade(db, oldVersion) {
+      if (oldVersion < 1) {
+        const pieces = db.createObjectStore('pieces', { keyPath: 'id' })
+        pieces.createIndex('createdAt', 'createdAt')
 
-      const sections = db.createObjectStore('sections', { keyPath: 'id' })
-      sections.createIndex('pieceId', 'pieceId')
+        const sections = db.createObjectStore('sections', { keyPath: 'id' })
+        sections.createIndex('pieceId', 'pieceId')
 
-      const attempts = db.createObjectStore('attempts', { keyPath: 'id' })
-      attempts.createIndex('sectionId', 'sectionId')
-      attempts.createIndex('pieceId', 'pieceId')
-      attempts.createIndex('timestamp', 'timestamp')
+        const attempts = db.createObjectStore('attempts', { keyPath: 'id' })
+        attempts.createIndex('sectionId', 'sectionId')
+        attempts.createIndex('pieceId', 'pieceId')
+        attempts.createIndex('timestamp', 'timestamp')
+      }
+      if (oldVersion < 2) {
+        db.createObjectStore('outbox', { keyPath: 'id' })
+      }
     },
   })
   return dbPromise

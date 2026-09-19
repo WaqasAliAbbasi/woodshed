@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { listAllAttempts } from '../../lib/db/attemptsRepo'
-import { createPiece, deletePiece, listPieces } from '../../lib/db/piecesRepo'
+import { downloadExport } from '../../lib/db/export'
+import { uploadLocalHistoryToServer } from '../../lib/db/import'
+import { createPiece, deletePiece, getPiece, listPieces, type PieceSummary } from '../../lib/db/piecesRepo'
 import type { Piece } from '../../lib/db/db'
 import { parseMusicXmlMetadata } from '../../lib/musicxml/parseMetadata'
 import { isIOS } from '../../lib/platform'
@@ -8,10 +10,13 @@ import { buildPieceStatsMap, formatDuration, formatPracticeDate, sortPiecesByRec
 import { ConfirmDialog } from '../ConfirmDialog/ConfirmDialog'
 
 export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void }) {
-  const [pieces, setPieces] = useState<Piece[]>([])
+  const [pieces, setPieces] = useState<PieceSummary[]>([])
   const [statsByPieceId, setStatsByPieceId] = useState<Map<string, PieceStats>>(new Map())
   const [error, setError] = useState<string | undefined>(undefined)
-  const [pendingDelete, setPendingDelete] = useState<Piece | undefined>(undefined)
+  const [pendingDelete, setPendingDelete] = useState<PieceSummary | undefined>(undefined)
+  const [openingPieceId, setOpeningPieceId] = useState<string | undefined>(undefined)
+  const [migrating, setMigrating] = useState(false)
+  const [migrationMessage, setMigrationMessage] = useState<string | undefined>(undefined)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const refresh = () =>
@@ -55,7 +60,28 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
     }
   }
 
-  const handleDelete = async (piece: Piece) => {
+  // The library list holds summaries (no musicXml — see PieceSummary), so
+  // opening a piece means fetching the full record first. createPiece's
+  // return value above already has musicXml and skips this.
+  const handleSelect = async (piece: PieceSummary) => {
+    setError(undefined)
+    setOpeningPieceId(piece.id)
+    try {
+      const full = await getPiece(piece.id)
+      if (!full) {
+        setError('That piece no longer exists — refreshing the list.')
+        await refresh()
+        return
+      }
+      onSelect(full)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setOpeningPieceId(undefined)
+    }
+  }
+
+  const handleDelete = async (piece: PieceSummary) => {
     setPendingDelete(undefined)
     setError(undefined)
     try {
@@ -63,6 +89,23 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
       await refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const handleUploadLocalHistory = async () => {
+    setError(undefined)
+    setMigrationMessage(undefined)
+    setMigrating(true)
+    try {
+      const result = await uploadLocalHistoryToServer()
+      setMigrationMessage(
+        `Imported ${result.pieces} piece${result.pieces === 1 ? '' : 's'}, ${result.sections} section${result.sections === 1 ? '' : 's'}, and ${result.attempts} attempt${result.attempts === 1 ? '' : 's'} from this browser.`,
+      )
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setMigrating(false)
     }
   }
 
@@ -75,7 +118,12 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
           const stats = statsByPieceId.get(piece.id)
           return (
             <li key={piece.id} className="piece-row">
-              <button type="button" className="piece-select" onClick={() => onSelect(piece)}>
+              <button
+                type="button"
+                className="piece-select"
+                disabled={openingPieceId === piece.id}
+                onClick={() => void handleSelect(piece)}
+              >
                 <span className="piece-title">{piece.title}</span>
                 {piece.composer && <span className="piece-composer">{piece.composer}</span>}
                 {stats && (
@@ -109,6 +157,21 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
         }}
       />
       {error && <div className="banner banner-error">{error}</div>}
+
+      {/* Backup/migration — see src/lib/db/export.ts and import.ts. "Import"
+          reads whatever this browser had stored locally before it started
+          talking to the server (relevant once, right after this server was
+          first deployed); "Download" is a standing backup independent of
+          the server's own nightly one. */}
+      <div className="piece-library-backup">
+        <button type="button" onClick={() => void downloadExport()}>
+          Download backup
+        </button>
+        <button type="button" disabled={migrating} onClick={() => void handleUploadLocalHistory()}>
+          {migrating ? 'Importing…' : 'Import this browser’s history'}
+        </button>
+      </div>
+      {migrationMessage && <div className="banner banner-success">{migrationMessage}</div>}
 
       {pendingDelete && (
         <ConfirmDialog

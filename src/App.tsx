@@ -1,10 +1,12 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import './App.css'
 import { HistoryView } from './components/History/HistoryView'
 import { InputSourceSelector } from './components/InputSourceSelector/InputSourceSelector'
 import { useMidiInput } from './components/InputSourceSelector/useMidiInput'
 import { PieceLibrary } from './components/PieceLibrary/PieceLibrary'
 import { PieceProgress } from './components/PieceProgress/PieceProgress'
+import { Dashboard } from './components/Dashboard/Dashboard'
+import { flushOutbox } from './lib/db/attemptsRepo'
 import { renamePiece } from './lib/db/piecesRepo'
 import type { Piece } from './lib/db/db'
 
@@ -42,7 +44,12 @@ function RenamableTitle({ piece, onRenamed }: { piece: Piece; onRenamed: (piece:
   const commit = async () => {
     const title = draft.trim()
     if (title && title !== piece.title) {
-      onRenamed(await renamePiece(piece.id, title))
+      // The server returns a summary (no musicXml, see piecesRepo.ts) —
+      // merge just the fields that changed into the piece already held in
+      // memory instead of replacing it wholesale, so the score currently
+      // rendered isn't discarded by a rename.
+      const updated = await renamePiece(piece.id, title)
+      onRenamed({ ...piece, title: updated.title, updatedAt: updated.updatedAt })
     }
     setEditing(false)
   }
@@ -86,10 +93,43 @@ function RenamableTitle({ piece, onRenamed }: { piece: Piece; onRenamed: (piece:
   )
 }
 
+function LogoutButton() {
+  return (
+    <button
+      type="button"
+      className="link-back app-logout"
+      onClick={() => {
+        void fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }).finally(() => {
+          window.location.href = '/login'
+        })
+      }}
+    >
+      Log out
+    </button>
+  )
+}
+
 function App() {
   const [piece, setPiece] = useState<Piece | undefined>(undefined)
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
+  // No client-side router — the app has exactly two top-level views (the
+  // piece library/practice workspace, and the read-only /dashboard). See
+  // CLAUDE.md: no responsive-breakpoint or routing infrastructure existed
+  // before the iPad fix either; a full router would be a lot of machinery
+  // for one extra path.
+  const [showDashboard] = useState(() => window.location.pathname.startsWith('/dashboard'))
   const midi = useMidiInput()
+
+  // Sweeps up any attempt a previous session couldn't deliver — a closed
+  // tab mid-push, the server briefly unreachable. See attemptsRepo.ts's
+  // outbox doc comment.
+  useEffect(() => {
+    void flushOutbox()
+  }, [])
+
+  if (showDashboard) {
+    return <Dashboard />
+  }
 
   if (!piece) {
     return (
@@ -97,6 +137,7 @@ function App() {
         <header className="brand">
           <WoodshedMark />
           <h1>Woodshed</h1>
+          <LogoutButton />
         </header>
         <PieceLibrary onSelect={setPiece} />
       </main>

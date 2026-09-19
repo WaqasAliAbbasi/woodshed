@@ -1,24 +1,23 @@
-import { getDb, type Section } from './db'
-import { generateId } from '../id'
+import { apiDelete, apiGet, apiPost, isNotFound } from '../api/client'
+import type { Section } from './db'
 
 export async function createSection(input: Omit<Section, 'id' | 'createdAt'>): Promise<Section> {
-  const db = await getDb()
-  const section: Section = { ...input, id: generateId(), createdAt: Date.now() }
-  await db.put('sections', section)
-  return section
+  return apiPost<Section>('/api/sections', input)
 }
 
 export async function listSectionsForPiece(pieceId: string): Promise<Section[]> {
-  const db = await getDb()
-  return db.getAllFromIndex('sections', 'pieceId', pieceId)
+  return apiGet<Section[]>(`/api/pieces/${pieceId}/sections`)
 }
 
 export async function getSection(id: string): Promise<Section | undefined> {
-  const db = await getDb()
-  return db.get('sections', id)
+  try {
+    return await apiGet<Section>(`/api/sections/${id}`)
+  } catch (err) {
+    if (isNotFound(err)) return undefined
+    throw err
+  }
 }
 
 export async function deleteSection(id: string): Promise<void> {
-  const db = await getDb()
-  await db.delete('sections', id)
+  return apiDelete(`/api/sections/${id}`)
 }

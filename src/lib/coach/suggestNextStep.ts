@@ -1,7 +1,9 @@
-import type { Attempt } from '../db/db'
-import type { AttemptAggregate, PracticeMode } from '../scoring/types'
-import type { SectionProgress } from './pieceProgress'
-import { summarizeSession } from './session'
+import type { Attempt } from '../db/db.ts'
+import type { AttemptAggregate, PracticeMode } from '../scoring/types.ts'
+import type { SectionProgress } from './pieceProgress.ts'
+// Explicit .ts extension — see the comment on the equivalent import in
+// pieceProgress.ts; server/mcp.ts loads this module directly via Node.
+import { summarizeSession } from './session.ts'
 
 export interface CoachSuggestion {
   headline: string

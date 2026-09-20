@@ -16,7 +16,8 @@ export function PracticeModeControl({
 }) {
   return (
     <fieldset className="hand-filter-control practice-mode-control" disabled={disabled}>
-      <legend>Mode</legend>
+      {/* Visually hidden, not removed — see HandFilterControl's legend. */}
+      <legend className="sr-only">Mode</legend>
       {OPTIONS.map((option) => (
         <label key={option.value} className="hand-filter-option">
           <input

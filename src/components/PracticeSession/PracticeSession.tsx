@@ -7,7 +7,7 @@ import { isReadyToStopLooping, SECTION_STATUS_LABEL } from '../../lib/coach/sugg
 import type { SectionProgress } from '../../lib/coach/pieceProgress'
 import { recordAttempt } from '../../lib/db/attemptsRepo'
 import type { Piece } from '../../lib/db/db'
-import { HAND_LABEL, MODE_LABEL, resolveSection } from '../../lib/db/resolveSection'
+import { resolveSection } from '../../lib/db/resolveSection'
 import {
   advanceCursorToMeasure,
   buildExpectedTimeline,
@@ -453,12 +453,29 @@ export function PracticeSession({
     <div className="practice-session">
       <div className="practice-action-bar">
         <div className="deck" ref={deckRef}>
-          <div className="deck-row">
+          {/* Section, settings and actions share one row: the deck is fixed
+              to the bottom of every screen, so each stacked row it used to
+              have was permanent height taken off the score above it. */}
+          <div className="deck-row deck-bar">
+            {/* Measures only. The hand and mode controls sit right beside
+                this saying the same thing, and a label that grows by "
+                (Notes)" when you switch mode pushes the row over its width
+                and wraps the buttons onto a second line. The suffixes still
+                belong on the *stored* section label (see resolveSection),
+                where there's no control next to it to say which is which. */}
             <span className="practice-section-label">
               Measures {range.startMeasure}–{range.endMeasure}
-              {HAND_LABEL[handFilter]}
-              {MODE_LABEL[mode]}
             </span>
+
+            {editable && (
+              <>
+                <PracticeModeControl mode={mode} onChange={onModeChange} disabled={!editable} />
+                {staffCount > 1 && (
+                  <HandFilterControl handFilter={handFilter} onChange={onHandFilterChange} disabled={!editable} />
+                )}
+              </>
+            )}
+
             {mode === 'metronome' && (
               <div className={`metronome${isLive ? ' metronome-live' : ''}`}>
                 <div className="metronome-base" />
@@ -470,14 +487,58 @@ export function PracticeSession({
                 </div>
               </div>
             )}
+
+            <div className="deck-actions">
+              {showLoopToggle && (
+                <button
+                  type="button"
+                  className={`btn-toggle${loopEnabled ? ' btn-toggle-active' : ''}`}
+                  aria-pressed={loopEnabled}
+                  onClick={() => setLoopEnabled((on) => !on)}
+                  title="Loop until ready"
+                >
+                  Loop
+                </button>
+              )}
+              {state.status === 'SectionConfigured' &&
+                (isPlayingBack ? (
+                  <button type="button" className="btn-toggle btn-toggle-active" onClick={handleStopPlayback}>
+                    Stop playback
+                  </button>
+                ) : (
+                  <button type="button" className="btn-toggle" onClick={handlePlayRange} title="Hear the selected range">
+                    ▶ Play
+                  </button>
+                ))}
+              {state.status === 'SectionConfigured' && (
+                <button type="button" className="btn-primary btn-go" onClick={() => void handleStart()} disabled={!midi.connected}>
+                  Start
+                </button>
+              )}
+              {isLive && (
+                <button type="button" className="btn-go" onClick={() => dispatch({ type: 'stop' })}>
+                  Stop
+                </button>
+              )}
+              {state.status === 'AttemptComplete' && (
+                <div className="result-actions">
+                  <button type="button" onClick={() => dispatch({ type: 'repeat' })}>
+                    Repeat
+                  </button>
+                  <button type="button" onClick={handleAdjust}>
+                    Change section
+                  </button>
+                  <button type="button" className="btn-primary" onClick={handleDone}>
+                    Done
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
-          {editable && (
-            <div className="deck-row deck-idle-controls">
-              <PracticeModeControl mode={mode} onChange={onModeChange} disabled={!editable} />
-              {staffCount > 1 && (
-                <HandFilterControl handFilter={handFilter} onChange={onHandFilterChange} disabled={!editable} />
-              )}
+          {!midi.connected && state.status === 'SectionConfigured' && (
+            <div className="deck-row deck-status-text">
+              <span className="practice-hint">Connect a MIDI device to start practicing.</span>
             </div>
           )}
 
@@ -557,60 +618,6 @@ export function PracticeSession({
             </div>
           )}
 
-          <div className="deck-row deck-actions">
-            {showLoopToggle && (
-              <button
-                type="button"
-                className={`btn-toggle${loopEnabled ? ' btn-toggle-active' : ''}`}
-                aria-pressed={loopEnabled}
-                onClick={() => setLoopEnabled((on) => !on)}
-                title="Loop until ready"
-              >
-                Loop
-              </button>
-            )}
-            {state.status === 'SectionConfigured' &&
-              (isPlayingBack ? (
-                <button type="button" className="btn-toggle btn-toggle-active" onClick={handleStopPlayback}>
-                  Stop playback
-                </button>
-              ) : (
-                <button type="button" className="btn-toggle" onClick={handlePlayRange} title="Hear the selected range">
-                  ▶ Play
-                </button>
-              ))}
-            {state.status === 'SectionConfigured' && (
-              <button
-                type="button"
-                className="btn-primary btn-round"
-                onClick={() => void handleStart()}
-                disabled={!midi.connected}
-              >
-                Start
-              </button>
-            )}
-            {isLive && (
-              <button type="button" className="btn-round" onClick={() => dispatch({ type: 'stop' })}>
-                Stop
-              </button>
-            )}
-            {state.status === 'AttemptComplete' && (
-              <div className="result-actions">
-                <button type="button" onClick={() => dispatch({ type: 'repeat' })}>
-                  Repeat
-                </button>
-                <button type="button" onClick={handleAdjust}>
-                  Change section
-                </button>
-                <button type="button" className="btn-primary" onClick={handleDone}>
-                  Done
-                </button>
-              </div>
-            )}
-            {!midi.connected && state.status === 'SectionConfigured' && (
-              <span className="practice-hint">Connect a MIDI device to start practicing.</span>
-            )}
-          </div>
         </div>
       </div>
     </div>

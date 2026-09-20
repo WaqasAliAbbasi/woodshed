@@ -23,6 +23,22 @@ export function getAccentColor(): string {
   return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#b8792e'
 }
 
+/**
+ * The per-measure progress washes painted behind the notation (see
+ * ScoreViewer), resolved from index.css for the same reason as
+ * {@link getDefaultMusicColor} — the wash is an SVG `fill`, so it can't
+ * inherit a CSS variable and needs the current theme's value handed over.
+ * Both are low-alpha on purpose: they sit under real notation and must not
+ * cost any legibility.
+ */
+export function getProgressWashColors(): { ready: string; touched: string } {
+  const styles = getComputedStyle(document.documentElement)
+  return {
+    ready: styles.getPropertyValue('--wash-ready').trim() || 'rgba(69, 175, 73, 0.3)',
+    touched: styles.getPropertyValue('--wash-touched').trim() || 'rgba(110, 91, 64, 0.13)',
+  }
+}
+
 /** Calls `onChange` whenever the OS/browser light-dark preference flips while subscribed. Returns an unsubscribe function. */
 export function watchColorScheme(onChange: () => void): () => void {
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')

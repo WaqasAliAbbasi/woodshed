@@ -32,6 +32,7 @@ interface PieceRow {
   created_at: number
   updated_at: number
   measure_count: number
+  target_tempo_bpm: number | null
 }
 
 function pieceFromRow(row: PieceRow): Piece {
@@ -44,10 +45,11 @@ function pieceFromRow(row: PieceRow): Piece {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     measureCount: row.measure_count,
+    targetTempoBpm: nullToUndefined(row.target_tempo_bpm),
   }
 }
 
-const PIECE_SUMMARY_COLUMNS = 'id, title, composer, filename, created_at, updated_at, measure_count'
+const PIECE_SUMMARY_COLUMNS = 'id, title, composer, filename, created_at, updated_at, measure_count, target_tempo_bpm'
 
 function pieceSummaryFromRow(row: Omit<PieceRow, 'music_xml'>): PieceSummary {
   return {
@@ -58,6 +60,7 @@ function pieceSummaryFromRow(row: Omit<PieceRow, 'music_xml'>): PieceSummary {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     measureCount: row.measure_count,
+    targetTempoBpm: nullToUndefined(row.target_tempo_bpm),
   }
 }
 
@@ -115,6 +118,25 @@ export function updatePiece(
       : db
           .prepare('UPDATE pieces SET title = ?, composer = ?, updated_at = ? WHERE id = ? AND user_id = ?')
           .run(updates.title, toParam(updates.composer), updatedAt, id, userId)
+  if (result.changes === 0) return undefined
+  return getPieceSummary(db, userId, id)
+}
+
+/**
+ * Sets the tempo the student is working this piece up to. Separate from
+ * {@link updatePiece} rather than another optional field on it: that one is
+ * the rename path and requires a title, which a tempo change has no
+ * business supplying.
+ */
+export function updatePieceTargetTempo(
+  db: DatabaseSync,
+  userId: string,
+  id: string,
+  targetTempoBpm: number,
+): PieceSummary | undefined {
+  const result = db
+    .prepare('UPDATE pieces SET target_tempo_bpm = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+    .run(targetTempoBpm, Date.now(), id, userId)
   if (result.changes === 0) return undefined
   return getPieceSummary(db, userId, id)
 }

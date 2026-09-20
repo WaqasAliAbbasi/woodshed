@@ -4,12 +4,11 @@ import { summarizeSectionProgress, type SectionProgress } from '../../lib/coach/
 import { listAttemptsForPiece } from '../../lib/db/attemptsRepo'
 import type { Piece } from '../../lib/db/db'
 import { listSectionsForPiece } from '../../lib/db/sectionsRepo'
-import { autoChopSections, type CandidateSection } from '../../lib/musicxml/autoChop'
-import { getStaffCount, type HandFilter } from '../../lib/musicxml/buildExpectedTimeline'
+import { getDefaultTempoBpm, getStaffCount, type HandFilter } from '../../lib/musicxml/buildExpectedTimeline'
 import type { MeasureRange } from '../../lib/musicxml/types'
 import type { PracticeMode } from '../../lib/scoring/types'
 import type { UseMidiInputResult } from '../InputSourceSelector/useMidiInput'
-import { ScoreViewer } from '../ScoreViewer/ScoreViewer'
+import { ScoreViewer, type MeasureProgressStatus } from '../ScoreViewer/ScoreViewer'
 import { PracticeSession } from './PracticeSession'
 
 const DEFAULT_RANGE_LENGTH_MEASURES = 4
@@ -26,12 +25,25 @@ export function PracticeWorkspace({
   midi,
   progressRefreshKey,
   onAttemptRecorded,
+  targetTempoBpm,
+  onScoreTempoResolved,
+  onEditableChange,
 }: {
   piece: Piece
   midi: UseMidiInputResult
   /** Bumped by the parent after every recorded attempt, so the section-progress stamp picks up the new result. */
   progressRefreshKey: number
   onAttemptRecorded: (sectionId: string) => void
+  /**
+   * The piece's target tempo, resolved by App (the piece's saved value, or
+   * the score's own marking until one is set). Undefined only for the
+   * render between the score loading and that marking reaching App — the
+   * practice deck waits rather than briefly running at a guessed tempo.
+   */
+  targetTempoBpm: number | undefined
+  /** Reports the score's own marked tempo up once OSMD has parsed it — the fallback target, and what the tempo presets are anchored to. Only this component has the loaded score to read it from. */
+  onScoreTempoResolved: (bpm: number) => void
+  onEditableChange: (editable: boolean) => void
 }) {
   const [osmd, setOsmd] = useState<OpenSheetMusicDisplay | undefined>(undefined)
   const [range, setRange] = useState<MeasureRange | undefined>(undefined)
@@ -41,23 +53,34 @@ export function PracticeWorkspace({
   const [mode, setMode] = useState<PracticeMode>('metronome')
   const [staffCount, setStaffCount] = useState(1)
   const [progress, setProgress] = useState<SectionProgress[]>([])
-  const [measureBounds, setMeasureBounds] = useState<{ first: number; last: number } | undefined>(undefined)
 
-  const candidateSections = useMemo(
-    () => (measureBounds ? autoChopSections(measureBounds.first, measureBounds.last) : []),
-    [measureBounds],
-  )
+  // Per-measure shading for every measure covered by a section that's been
+  // attempted: green once the section has been played clean at the target
+  // tempo, a neutral "worked on, not there yet" tint otherwise. Where two
+  // overlapping sections disagree on a measure, cleared wins — getting it
+  // in the context of one section is real even if a longer section covering
+  // the same measure hasn't come together yet.
+  const measureStatus = useMemo(() => {
+    const statuses = new Map<number, MeasureProgressStatus>()
+    for (const { section, clearedAtTarget } of progress) {
+      const mark: MeasureProgressStatus = clearedAtTarget ? 'ready' : 'inProgress'
+      for (let m = section.startMeasure; m <= section.endMeasure; m++) {
+        if (mark === 'ready' || statuses.get(m) !== 'ready') statuses.set(m, mark)
+      }
+    }
+    return statuses
+  }, [progress])
 
   useEffect(() => {
     let cancelled = false
     Promise.all([listSectionsForPiece(piece.id), listAttemptsForPiece(piece.id)]).then(([sections, pieceAttempts]) => {
       if (cancelled) return
-      setProgress(summarizeSectionProgress(sections, pieceAttempts))
+      setProgress(summarizeSectionProgress(sections, pieceAttempts, targetTempoBpm))
     })
     return () => {
       cancelled = true
     }
-  }, [piece.id, progressRefreshKey])
+  }, [piece.id, progressRefreshKey, targetTempoBpm])
 
   // The range is derived from the loaded score once OSMD is ready, so it's
   // initialized in the onReady handler rather than in an effect (which would
@@ -77,10 +100,10 @@ export function PracticeWorkspace({
         startMeasure: firstMeasureNumber,
         endMeasure: Math.min(firstMeasureNumber + DEFAULT_RANGE_LENGTH_MEASURES - 1, lastMeasureNumber),
       })
-      setMeasureBounds({ first: firstMeasureNumber, last: lastMeasureNumber })
       setStaffCount(getStaffCount(loaded))
+      onScoreTempoResolved(getDefaultTempoBpm(loaded))
     }
-  }, [range])
+  }, [range, onScoreTempoResolved])
 
   const handleMeasureClick = (measureNumber: number) => {
     if (anchorMeasure === undefined) {
@@ -92,19 +115,9 @@ export function PracticeWorkspace({
     }
   }
 
-  // A ready-made starting point besides two blind clicks — picks the range
-  // and, on a multi-staff piece, defaults to right-hand-first (the
-  // RH -> LH -> hands-together drill order; Loop mode's speed-trainer
-  // step-up, see practiceMachine, covers the slow -> target tempo axis of
-  // that same order once the user turns Loop on).
-  const handleSelectCandidateSection = (section: CandidateSection) => {
-    setAnchorMeasure(undefined)
-    setRange(section.range)
-    if (staffCount > 1) setHandFilter('right')
-  }
-
   const handleEditableChange = (nextEditable: boolean) => {
     setEditable(nextEditable)
+    onEditableChange(nextEditable)
     // Never let a half-made selection (one click, no second click yet)
     // survive into the next time the user is allowed to click again —
     // otherwise their next click silently completes a stale range instead
@@ -114,22 +127,6 @@ export function PracticeWorkspace({
 
   return (
     <>
-      {editable && candidateSections.length > 1 && (
-        <div className="shelf section-suggestions">
-          {candidateSections.map((section) => (
-            <button
-              key={`${section.range.startMeasure}-${section.range.endMeasure}`}
-              type="button"
-              className={`tile tile-suggestion${
-                range?.startMeasure === section.range.startMeasure && range.endMeasure === section.range.endMeasure ? ' tile-suggestion-active' : ''
-              }`}
-              onClick={() => handleSelectCandidateSection(section)}
-            >
-              {section.label}
-            </button>
-          ))}
-        </div>
-      )}
       {editable && anchorMeasure !== undefined && <p className="selection-hint">Click the last measure of the range</p>}
       <ScoreViewer
         key={piece.id}
@@ -139,13 +136,15 @@ export function PracticeWorkspace({
         clickable={editable}
         onMeasureClick={handleMeasureClick}
         handFilter={handFilter}
+        measureStatus={measureStatus}
       />
-      {osmd && range && (
+      {osmd && range && targetTempoBpm !== undefined && (
         <PracticeSession
           osmd={osmd}
           piece={piece}
           midi={midi}
           range={range}
+          tempoBpm={targetTempoBpm}
           handFilter={handFilter}
           onHandFilterChange={setHandFilter}
           mode={mode}

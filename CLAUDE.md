@@ -68,9 +68,12 @@ practice modes score fundamentally different things:
 - `SequenceMatcher` (Notes mode) — order-driven, no clock. Chords are
   expected strictly in sequence; a wrong note is flagged but does *not*
   advance past the current chord — you must play it right to move on. A
-  completed, unaborted attempt therefore always has 100% pitch accuracy by
-  construction (see `isReadyToStopLooping`'s doc comment for how the coach
-  works around that).
+  chord is also all-or-nothing: a wrong note part-way through one discards
+  the notes already played in it, so a grand-staff chord can't be completed
+  one hand at a time (there's no simultaneity window — with no clock,
+  "together" means "with nothing wrong in between"). A completed, unaborted
+  attempt therefore always has 100% pitch accuracy by construction (see
+  `isReadyToStopLooping`'s doc comment for how the coach works around that).
 
 Both produce the same `NoteResult`/`AttemptAggregate` shape
 (`lib/scoring/types.ts`, `aggregate.ts`) so the rest of the app (history,

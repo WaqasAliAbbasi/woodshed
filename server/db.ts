@@ -34,7 +34,37 @@ export function openDb(dbPath: string): DatabaseSync {
   // multi-store delete transaction (see the previous piecesRepo.deletePiece).
   db.exec('PRAGMA foreign_keys = ON')
   db.exec(readFileSync(join(here, 'schema.sql'), 'utf8'))
+  addMissingColumns(db)
   return db
+}
+
+/**
+ * The expand half of every column added to a table that already existed on
+ * a live database. schema.sql is `CREATE TABLE IF NOT EXISTS` throughout,
+ * so a column added to one of those statements reaches a *fresh* database
+ * only — an existing table keeps the shape it was created with and the new
+ * column silently never appears. Adding it here is what actually migrates
+ * a real instance.
+ *
+ * Entries must be additive and nullable, never a rename, a drop, or a NOT
+ * NULL without a default: a running instance keeps serving the previous
+ * version's code until it restarts, so anything here has to be invisible to
+ * that code. A change that can't be expressed this way needs a genuine
+ * expand/contract pass (add new column, backfill, switch reads, drop old)
+ * across more than one deploy — not an entry in this list.
+ */
+const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
+  { table: 'pieces', column: 'target_tempo_bpm', definition: 'INTEGER' },
+]
+
+function addMissingColumns(db: DatabaseSync): void {
+  for (const { table, column, definition } of ADDED_COLUMNS) {
+    // SQLite has no ADD COLUMN IF NOT EXISTS, and re-running a plain ALTER
+    // throws — so the PRAGMA check is what makes boot idempotent.
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]
+    if (columns.some((c) => c.name === column)) continue
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+  }
 }
 
 /** node:sqlite's bind params reject `undefined` and JS booleans outright (see its own TypeError) — every optional/boolean column goes through this before binding. */

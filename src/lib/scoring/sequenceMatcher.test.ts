@@ -82,12 +82,42 @@ describe('SequenceMatcher', () => {
     expect(result.hand).toBeUndefined()
   })
 
-  it('finalize marks the rest of the current chord and every later chord as missed when stopped early', () => {
+  it('a wrong note part-way through a chord resets the whole chord — both hands have to land together', () => {
+    const matcher = new SequenceMatcher([chord([48, 64], ['left', 'right'])])
+    matcher.noteOn(48) // left hand lands
+    expect(matcher.noteOn(65).classification).toBe('extra') // right hand fumbles
+    // The left hand's note is no longer banked: playing just the right one now leaves the chord unfinished.
+    matcher.noteOn(64)
+    expect(matcher.isComplete).toBe(false)
+    matcher.noteOn(48)
+    expect(matcher.isComplete).toBe(true)
+  })
+
+  it('does not double-count the notes played before a mistake reset the chord', () => {
+    const matcher = new SequenceMatcher([chord([48, 64], ['left', 'right'])])
+    matcher.noteOn(48)
+    matcher.noteOn(65) // wrong -> chord resets, the 48 is forgotten
+    matcher.noteOn(48)
+    matcher.noteOn(64)
+    const { aggregate } = matcher.finalize()
+    expect(aggregate).toMatchObject({ expected: 2, correct: 2, extra: 1, missed: 0 })
+    expect(aggregate.pitchAccuracy).toBe(1)
+  })
+
+  it('flashes the whole reset chord on a wrong note, not just the half still unplayed', () => {
+    const event = chord([48, 64], ['left', 'right'])
+    const matcher = new SequenceMatcher([event])
+    matcher.noteOn(48)
+    matcher.noteOn(65)
+    expect(matcher.currentRemainingGraphicalNotes).toEqual(event.graphicalNotes)
+  })
+
+  it('finalize marks a half-played chord as missed in full, along with every later chord', () => {
     const matcher = new SequenceMatcher([chord([60, 64]), chord([67])])
-    matcher.noteOn(60) // only half of the first chord played
+    matcher.noteOn(60) // only half of the first chord played — not banked, the chord never landed
     const { aggregate, noteResults } = matcher.finalize()
-    expect(aggregate).toMatchObject({ expected: 3, correct: 1, missed: 2 })
-    expect(noteResults.filter((r) => r.classification === 'missed')).toHaveLength(2)
+    expect(aggregate).toMatchObject({ expected: 3, correct: 0, missed: 3 })
+    expect(noteResults.filter((r) => r.classification === 'missed')).toHaveLength(3)
   })
 
   it('finalize reports everything correct when the whole sequence was completed', () => {

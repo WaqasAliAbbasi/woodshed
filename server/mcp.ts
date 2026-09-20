@@ -88,7 +88,12 @@ function buildMcpServer(db: DatabaseSync, userId: string): McpServer {
     async ({ pieceId }) => {
       const sections = queries.listSectionsForPiece(db, userId, pieceId)
       const attempts = queries.listAttemptsForPiece(db, userId, pieceId)
-      const progress = summarizeSectionProgress(sections, attempts)
+      // An unset target reads as undefined rather than being defaulted here:
+      // the stand-in is the score's own marked tempo, which lives in the
+      // MusicXML and only the client parses. Inventing a number server-side
+      // would report a `clearedAtTarget` the app never showed.
+      const targetTempoBpm = queries.getPieceSummary(db, userId, pieceId)?.targetTempoBpm
+      const progress = summarizeSectionProgress(sections, attempts, targetTempoBpm)
       const summary = progress.map((p) => ({
         sectionLabel: p.section.label,
         status: SECTION_STATUS_LABEL[p.status],
@@ -96,6 +101,8 @@ function buildMcpServer(db: DatabaseSync, userId: string): McpServer {
         latestTempoBpm: p.latest.tempoBpm,
         latestPitchAccuracy: p.latest.aggregate.pitchAccuracy,
         latestTimingAccuracy: p.latest.aggregate.timingAccuracy,
+        targetTempoBpm,
+        clearedAtTarget: p.clearedAtTarget,
       }))
       return { content: [{ type: 'text', text: JSON.stringify(summary, null, 2) }] }
     },

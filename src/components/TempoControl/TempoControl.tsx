@@ -1,7 +1,5 @@
+import { MAX_TEMPO_BPM as MAX_BPM, MIN_TEMPO_BPM as MIN_BPM } from '../../lib/musicxml/buildExpectedTimeline'
 import { NumberField } from '../NumberField/NumberField'
-
-const MIN_BPM = 20
-const MAX_BPM = 240
 
 export function TempoControl({
   tempoBpm,

@@ -1,12 +1,14 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { HistoryView } from './components/History/HistoryView'
 import { InputSourceSelector } from './components/InputSourceSelector/InputSourceSelector'
 import { useMidiInput } from './components/InputSourceSelector/useMidiInput'
 import { McpInfoLink } from './components/McpInfo/McpInfo'
 import { PieceLibrary } from './components/PieceLibrary/PieceLibrary'
+import { TargetTempoChip } from './components/TempoControl/TargetTempoChip'
 import { flushOutbox } from './lib/db/attemptsRepo'
-import { updatePiece } from './lib/db/piecesRepo'
+import { updatePiece, updateTargetTempo } from './lib/db/piecesRepo'
+import { getTempoPresets } from './lib/musicxml/buildExpectedTimeline'
 import type { Piece } from './lib/db/db'
 
 // Pulls in OpenSheetMusicDisplay, by far the heaviest dependency in the
@@ -176,7 +178,51 @@ function LogoutButton() {
 function App() {
   const [piece, setPiece] = useState<Piece | undefined>(undefined)
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
+  // The score's own marked tempo, reported up once PracticeWorkspace has a
+  // parsed score. Stands in as the target until the student sets one, and
+  // anchors the presets to "full speed" rather than to whatever's dialed in.
+  // Tagged with the piece it was read from, and ignored for any other:
+  // App outlives a piece switch, so an untagged value would hand the next
+  // piece the previous one's tempo for the render before its score loads —
+  // and PracticeSession would start an attempt at it.
+  const [scoreTempo, setScoreTempo] = useState<{ pieceId: string; bpm: number } | undefined>(undefined)
+  // Tagged with its piece for the same reason as `scoreTempo`: leaving a
+  // piece mid-attempt leaves this false, and the next piece starts idle —
+  // an untagged flag would open its tempo chip disabled for no reason.
+  const [editState, setEditState] = useState<{ pieceId: string; editable: boolean } | undefined>(undefined)
   const midi = useMidiInput()
+
+  const editable = piece && editState?.pieceId === piece.id ? editState.editable : true
+  const scoreTempoBpm = piece && scoreTempo?.pieceId === piece.id ? scoreTempo.bpm : undefined
+  const targetTempoBpm = piece?.targetTempoBpm ?? scoreTempoBpm
+  const tempoPresets = useMemo(() => (scoreTempoBpm === undefined ? undefined : getTempoPresets(scoreTempoBpm)), [scoreTempoBpm])
+
+  const pieceId = piece?.id
+  const handleScoreTempoResolved = useCallback(
+    (bpm: number) => {
+      if (pieceId) setScoreTempo({ pieceId, bpm })
+    },
+    [pieceId],
+  )
+
+  const handleEditableChange = useCallback(
+    (nextEditable: boolean) => {
+      if (pieceId) setEditState({ pieceId, editable: nextEditable })
+    },
+    [pieceId],
+  )
+
+  const handleTargetTempoChange = useCallback(
+    (bpm: number) => {
+      if (!piece) return
+      // Applied locally first so the dial and the score's shading react at
+      // once; the piece row is the durable copy, but a round trip per drag
+      // of the slider would make the control feel stuck.
+      setPiece({ ...piece, targetTempoBpm: bpm })
+      void updateTargetTempo(piece.id, bpm)
+    },
+    [piece],
+  )
 
   // Sweeps up any attempt a previous session couldn't deliver — a closed
   // tab mid-push, the server briefly unreachable. See attemptsRepo.ts's
@@ -209,6 +255,14 @@ function App() {
           <RenamableTitle piece={piece} onRenamed={setPiece} />
           <RenamableComposer piece={piece} onRenamed={setPiece} />
         </div>
+        {targetTempoBpm !== undefined && (
+          <TargetTempoChip
+            tempoBpm={targetTempoBpm}
+            presets={tempoPresets}
+            disabled={!editable}
+            onChange={handleTargetTempoChange}
+          />
+        )}
         <InputSourceSelector midi={midi} />
       </div>
 
@@ -218,6 +272,9 @@ function App() {
           midi={midi}
           progressRefreshKey={historyRefreshKey}
           onAttemptRecorded={() => setHistoryRefreshKey((k) => k + 1)}
+          targetTempoBpm={targetTempoBpm}
+          onScoreTempoResolved={handleScoreTempoResolved}
+          onEditableChange={handleEditableChange}
         />
       </Suspense>
 

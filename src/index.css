@@ -13,6 +13,25 @@
   --accent-soft-bg: #efd9ae;
   --accent-soft-text: #6b4a1e;
   --pine: #33513f;
+  /* Per-measure practice progress, washed behind the notation (see
+     ScoreViewer). Deliberately not --accent: amber already means "this is
+     the range you selected", and a measure's progress must not read as a
+     selection. Green carries "ready"; "attempted, not there yet" is a
+     neutral tint rather than a second hue, so the only color the score
+     editorializes with stays green. The two alphas are deliberately not
+     matched: "ready" is the state worth noticing across a whole page, so it
+     carries roughly twice the weight of "attempted" — evening them up makes
+     the pair read as one undifferentiated "washed vs not".
+
+     --wash-ready is a *saturated* relative of theme.ts's CORRECT_COLOR
+     (#5b7f52), not that color itself. CORRECT_COLOR is a muted sage, and
+     muted over warm paper composites to something with no green left in it
+     — at 19% on this background it lands on rgb(217,215,191), a beige whose
+     red and green channels are two points apart. Turning the alpha up only
+     yields a darker beige; the hue has to carry the saturation. Don't
+     "harmonize" this back to CORRECT_COLOR. */
+  --wash-ready: rgba(69, 175, 73, 0.3);
+  --wash-touched: rgba(110, 91, 64, 0.07);
   --danger-bg: #f3dcd3;
   --danger-text: #7a2e18;
   --warning-bg: #f7e4be;
@@ -48,6 +67,8 @@
     --accent-soft-bg: #3b2c16;
     --accent-soft-text: #e9c485;
     --pine: #7fae95;
+    --wash-ready: rgba(116, 216, 130, 0.26);
+    --wash-touched: rgba(179, 161, 134, 0.08);
     --danger-bg: #3a2018;
     --danger-text: #e08b6d;
     --warning-bg: #3a3018;

@@ -45,9 +45,11 @@ function attempt(overrides: Partial<Attempt> & { aggregate: AttemptAggregate }):
 
 describe('summarizeSectionProgress', () => {
   it('omits sections with no attempts', () => {
-    const result = summarizeSectionProgress([section(), section({ id: 's2' })], [
-      attempt({ sectionId: 's1', aggregate: aggregate(1, 1) }),
-    ])
+    const result = summarizeSectionProgress(
+      [section(), section({ id: 's2' })],
+      [attempt({ sectionId: 's1', aggregate: aggregate(1, 1) })],
+      undefined,
+    )
     expect(result).toHaveLength(1)
     expect(result[0].section.id).toBe('s1')
   })
@@ -57,7 +59,7 @@ describe('summarizeSectionProgress', () => {
     const bestOne = attempt({ id: 'a2', timestamp: 2, tempoBpm: 70, aggregate: aggregate(0.95, 0.9) })
     const mostRecent = attempt({ id: 'a3', timestamp: 3, tempoBpm: 80, aggregate: aggregate(0.6, 0.6) })
 
-    const [summary] = summarizeSectionProgress([section()], [worst, bestOne, mostRecent])
+    const [summary] = summarizeSectionProgress([section()], [worst, bestOne, mostRecent], undefined)
     expect(summary.attemptCount).toBe(3)
     expect(summary.best.id).toBe('a2')
     expect(summary.latest.id).toBe('a3')
@@ -76,6 +78,7 @@ describe('summarizeSectionProgress', () => {
         attempt({ sectionId: 's-struggling', timestamp: 2, aggregate: aggregate(0.4, 0.4) }),
         attempt({ sectionId: 's-progressing', timestamp: 3, aggregate: aggregate(0.88, 0.85) }),
       ],
+      undefined,
     )
 
     expect(result.map((s) => s.section.id)).toEqual(['s-struggling', 's-progressing', 's-ready'])
@@ -91,8 +94,57 @@ describe('summarizeSectionProgress', () => {
         attempt({ sectionId: 's-fresh', timestamp: 100, aggregate: aggregate(0.4, 0.4) }),
         attempt({ sectionId: 's-stale', timestamp: 1, aggregate: aggregate(0.4, 0.4) }),
       ],
+      undefined,
     )
 
     expect(result.map((s) => s.section.id)).toEqual(['s-stale', 's-fresh'])
+  })
+})
+
+describe('summarizeSectionProgress: clearedAtTarget', () => {
+  const clean = () => aggregate(0.98, 0.95)
+
+  it('is false when no target tempo is set — nothing can clear a bar that does not exist', () => {
+    const [summary] = summarizeSectionProgress([section()], [attempt({ tempoBpm: 200, aggregate: clean() })], undefined)
+    expect(summary.clearedAtTarget).toBe(false)
+  })
+
+  it('is true for a clean attempt at the target, and for one above it', () => {
+    const [at] = summarizeSectionProgress([section()], [attempt({ tempoBpm: 80, aggregate: clean() })], 80)
+    expect(at.clearedAtTarget).toBe(true)
+
+    const [above] = summarizeSectionProgress([section()], [attempt({ tempoBpm: 96, aggregate: clean() })], 80)
+    expect(above.clearedAtTarget).toBe(true)
+  })
+
+  it('is false for a clean attempt below the target — playing it perfectly slowly is not the same as having it', () => {
+    const [summary] = summarizeSectionProgress([section()], [attempt({ tempoBpm: 60, aggregate: clean() })], 80)
+    expect(summary.clearedAtTarget).toBe(false)
+  })
+
+  it('is false for an at-tempo attempt that was not clean', () => {
+    const [summary] = summarizeSectionProgress([section()], [attempt({ tempoBpm: 80, aggregate: aggregate(0.6, 0.6) })], 80)
+    expect(summary.clearedAtTarget).toBe(false)
+  })
+
+  it('ignores aborted attempts, however clean the part that was played', () => {
+    const [summary] = summarizeSectionProgress([section()], [attempt({ tempoBpm: 80, aborted: true, aggregate: clean() })], 80)
+    expect(summary.clearedAtTarget).toBe(false)
+  })
+
+  it('survives a later slow run — it asks "have I ever got this", not "how did it just go"', () => {
+    const cleared = attempt({ id: 'a1', timestamp: 1, tempoBpm: 80, aggregate: clean() })
+    const slowWarmUp = attempt({ id: 'a2', timestamp: 2, tempoBpm: 50, aggregate: aggregate(0.5, 0.5) })
+
+    const [summary] = summarizeSectionProgress([section()], [cleared, slowWarmUp], 80)
+    expect(summary.clearedAtTarget).toBe(true)
+    // ...while `status`, which drives the post-attempt stamp, still reflects that last run.
+    expect(summary.status).toBe('struggling')
+  })
+
+  it('reverts once the target is raised past what was cleared', () => {
+    const attempts = [attempt({ tempoBpm: 80, aggregate: clean() })]
+    expect(summarizeSectionProgress([section()], attempts, 80)[0].clearedAtTarget).toBe(true)
+    expect(summarizeSectionProgress([section()], attempts, 100)[0].clearedAtTarget).toBe(false)
   })
 })

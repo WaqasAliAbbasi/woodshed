@@ -1,5 +1,5 @@
 import type { GraphicalNote, OpenSheetMusicDisplay } from 'opensheetmusicdisplay'
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
 import { correlateClock, getAudioContext, midiTimeStampToAudioTime, type ClockCorrelation } from '../../lib/clock/audioClock'
 import { Metronome } from '../../lib/clock/metronome'
 import { Playback } from '../../lib/clock/playback'
@@ -13,8 +13,6 @@ import {
   buildExpectedTimeline,
   getBeatsPerMeasure,
   getCountInBeats,
-  getDefaultTempoBpm,
-  getTempoPresets,
   scrollCursorIntoView,
   type HandFilter,
 } from '../../lib/musicxml/buildExpectedTimeline'
@@ -27,7 +25,6 @@ import type { MidiNoteEvent } from '../../lib/midi/midiEvents'
 import { HandFilterControl } from '../HandFilterControl/HandFilterControl'
 import type { UseMidiInputResult } from '../InputSourceSelector/useMidiInput'
 import { PracticeModeControl } from '../PracticeModeControl/PracticeModeControl'
-import { TempoControl } from '../TempoControl/TempoControl'
 import { initialPracticeState, practiceReducer } from './practiceMachine'
 
 const COUNT_IN_MEASURES = 1
@@ -65,6 +62,7 @@ export function PracticeSession({
   onEditableChange,
   onAttemptRecorded,
   progress,
+  tempoBpm,
 }: {
   osmd: OpenSheetMusicDisplay
   piece: Piece
@@ -80,13 +78,15 @@ export function PracticeSession({
   onAttemptRecorded: (sectionId: string) => void
   /** Looked up (by the just-completed section's id) to stamp the result with its overall struggling/progressing/ready status — not derived from this one attempt alone. */
   progress: SectionProgress[]
+  /**
+   * The piece's target tempo, owned by the header's TargetTempoChip and
+   * saved on the piece — attempts are played at it, and it's the bar
+   * `clearedAtTarget` judges them against. Practising is no longer a
+   * separate dial from the goal: moving one moves the other, which is what
+   * makes "get everything green, then raise it" a single loop.
+   */
+  tempoBpm: number
 }) {
-  const [tempoBpm, setTempoBpm] = useState(() => getDefaultTempoBpm(osmd))
-  // The piece's own marked tempo, kept separate from `tempoBpm` (which the
-  // student can freely change) so the presets stay anchored to a fixed
-  // "full speed" target rather than drifting to whatever's currently dialed in.
-  const idealTempoBpm = useMemo(() => getDefaultTempoBpm(osmd), [osmd])
-  const tempoPresets = useMemo(() => getTempoPresets(idealTempoBpm), [idealTempoBpm])
   const [state, dispatch] = useReducer(practiceReducer, initialPracticeState)
   const [currentBeat, setCurrentBeat] = useState(0)
   const [beatsPerMeasure, setBeatsPerMeasure] = useState(4)
@@ -135,15 +135,6 @@ export function PracticeSession({
     if (editable) dispatch({ type: 'configureSection', range, tempoBpm, handFilter, mode })
   }, [range, tempoBpm, handFilter, mode, editable])
 
-  // The reverse sync: while not editable, the reducer is the source of truth
-  // for tempo (Loop mode's speed trainer bumps it between reps — see the
-  // loop effect below). Mirror it back into the TempoControl's value so a
-  // tempo bump is visible in the deck even though the control is disabled,
-  // instead of the control silently showing the pre-loop tempo.
-  useEffect(() => {
-    if (state.status !== 'PieceLoaded') setTempoBpm(state.tempoBpm)
-  }, [state])
-
   // Feed MIDI note-on events into the active matcher only while actually attempting.
   useEffect(() => {
     if (state.status !== 'Attempting') {
@@ -161,7 +152,11 @@ export function PracticeSession({
         const result = sequenceMatcher.noteOn(event.note, event.velocity)
 
         if (result.classification === 'extra') {
-          // Wrong note: flash what's actually expected right now so it's clear what to try instead — see SequenceMatcher's drill-style design (must play it correctly to advance).
+          // Wrong note: the matcher has just reset the chord, so this flashes
+          // the whole thing red — including any note of it already played
+          // green — making it clear the chord starts over rather than
+          // resuming from the hand that landed (see SequenceMatcher's
+          // all-or-nothing chord rule).
           for (const graphicalNote of sequenceMatcher.currentRemainingGraphicalNotes) {
             graphicalNote.setColor(WRONG_COLOR, { applyToNoteheads: true })
             coloredNotesRef.current.push(graphicalNote)
@@ -367,15 +362,14 @@ export function PracticeSession({
     })
   }, [state.status, piece.id, onAttemptRecorded]) // eslint-disable-line react-hooks/exhaustive-deps -- fires once on entering AttemptScoring, closing over that render's state
 
-  // Loop mode: a speed trainer. Auto-repeats at the same tempo on a failing
-  // rep; on a passing rep (see isReadyToStopLooping) in Metronome mode, steps
-  // up to the next tempo preset instead of switching itself off, so a loop
-  // started at the slow preset climbs slow -> medium -> target and only then
-  // stops. Notes mode has no tempo to step (see TempoControl, hidden outside
-  // Metronome mode) so a pass there still just stops the loop. Stopping an
-  // attempt early (aborted) is treated as "I want out" and turns the loop off
-  // rather than immediately restarting, since that's the only way to
-  // interrupt a loop.
+  // Loop mode: drill the same section, at the same tempo, until it comes
+  // together (see isReadyToStopLooping) — then switch itself off. The tempo
+  // is deliberately never raised for you: working a whole piece at one speed
+  // and stepping up only when *you* decide to is the practice habit this is
+  // built around, so a tempo change is always an explicit move on the
+  // TempoControl. Stopping an attempt early (aborted) is treated as "I want
+  // out" and turns the loop off rather than immediately restarting, since
+  // that's the only way to interrupt a loop.
   useEffect(() => {
     if (!loopEnabled || state.status !== 'AttemptComplete') return
     if (state.aborted) {
@@ -384,17 +378,12 @@ export function PracticeSession({
     }
     if (state.aggregate.expected === 0) return // nothing playable in this range/hand combo — nothing to loop toward
     if (isReadyToStopLooping(state.mode, state.aggregate)) {
-      const nextTempoBpm = state.mode === 'metronome' ? tempoPresets.find((preset) => preset > state.tempoBpm) : undefined
-      if (nextTempoBpm === undefined) {
-        setLoopEnabled(false)
-        return
-      }
-      const timeout = setTimeout(() => dispatch({ type: 'repeat', tempoBpm: nextTempoBpm }), LOOP_REPEAT_DELAY_MS)
-      return () => clearTimeout(timeout)
+      setLoopEnabled(false)
+      return
     }
     const timeout = setTimeout(() => dispatch({ type: 'repeat' }), LOOP_REPEAT_DELAY_MS)
     return () => clearTimeout(timeout)
-  }, [state, loopEnabled, tempoPresets])
+  }, [state, loopEnabled])
 
   const handleStart = async () => {
     if (state.status !== 'SectionConfigured') return
@@ -459,19 +448,6 @@ export function PracticeSession({
     ? Math.round((100 * handBalance.leftAvgVelocity) / (handBalance.leftAvgVelocity + handBalance.rightAvgVelocity))
     : 0
   const showLoopToggle = state.status === 'SectionConfigured' || state.status === 'AttemptComplete'
-  // Loop mode's speed-trainer step-up (see the loop effect below) is about
-  // to bump the tempo for the next rep — surfaced here so it's visible in
-  // the deck *before* it happens, not just inferred from the TempoControl
-  // silently showing a new number once the next rep starts.
-  const nextLoopTempoBpm =
-    state.status === 'AttemptComplete' &&
-    loopEnabled &&
-    !state.aborted &&
-    state.aggregate.expected > 0 &&
-    state.mode === 'metronome' &&
-    isReadyToStopLooping(state.mode, state.aggregate)
-      ? tempoPresets.find((preset) => preset > state.tempoBpm)
-      : undefined
 
   return (
     <div className="practice-session">
@@ -498,9 +474,6 @@ export function PracticeSession({
 
           {editable && (
             <div className="deck-row deck-idle-controls">
-              {mode === 'metronome' && (
-                <TempoControl tempoBpm={tempoBpm} onChange={setTempoBpm} disabled={!editable} presets={tempoPresets} />
-              )}
               <PracticeModeControl mode={mode} onChange={onModeChange} disabled={!editable} />
               {staffCount > 1 && (
                 <HandFilterControl handFilter={handFilter} onChange={onHandFilterChange} disabled={!editable} />
@@ -578,7 +551,6 @@ export function PracticeSession({
                         </>
                       )}
                     </p>
-                    {nextLoopTempoBpm !== undefined && <p className="tally loop-tempo-bump">Solid — next rep at {nextLoopTempoBpm} BPM</p>}
                   </div>
                 </>
               )}

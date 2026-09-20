@@ -31,6 +31,11 @@ export async function updatePiece(id: string, updates: { title: string; composer
   return apiPatch<PieceSummary>(`/api/pieces/${id}`, updates)
 }
 
+/** Sets the tempo the piece is being worked up to. Returns a summary, merged into the held `Piece` the same way {@link updatePiece}'s is. */
+export async function updateTargetTempo(id: string, targetTempoBpm: number): Promise<PieceSummary> {
+  return apiPatch<PieceSummary>(`/api/pieces/${id}/target-tempo`, { targetTempoBpm })
+}
+
 export async function deletePiece(id: string): Promise<void> {
   return apiDelete(`/api/pieces/${id}`)
 }

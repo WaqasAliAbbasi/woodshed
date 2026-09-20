@@ -8,6 +8,57 @@ import type { OpenSheetMusicDisplay, PointF2D } from 'opensheetmusicdisplay'
  */
 const CLICK_TOLERANCE_UNITS = 3
 
+export interface MeasureBoundingBox {
+  measureNumber: number
+  /** Which rendered system (staff row) this box belongs to, counted across every page. Lets callers line up per-measure drawing with the rest of its row. */
+  systemIndex: number
+  left: number
+  right: number
+  top: number
+  bottom: number
+}
+
+/**
+ * Every real (non-ghost) measure's bounding box, in OSMD units — one entry
+ * per staff a measure appears on (a grand staff piece has two entries per
+ * measure number, one per staff). Shared by hit-testing (below) and by
+ * anything else that needs to know where a measure was actually drawn (e.g.
+ * painting per-measure progress on the score).
+ */
+export function getMeasureBoundingBoxes(osmd: OpenSheetMusicDisplay): MeasureBoundingBox[] {
+  const boxes: MeasureBoundingBox[] = []
+  let systemIndex = -1
+
+  for (const page of osmd.GraphicSheet.MusicPages) {
+    for (const system of page.MusicSystems) {
+      systemIndex++
+      for (const staffMeasures of system.GraphicalMeasures) {
+        for (const measure of staffMeasures) {
+          const measureNumber = measure.MeasureNumber
+          // Systems can carry ghost measures after the final barline (key /
+          // rhythm change targets) whose MeasureNumber is never set (< 0).
+          // 0 is a real, clickable measure — OSMD numbers a pickup/anacrusis
+          // measure at the start of a piece as 0, not 1 (see
+          // buildExpectedTimeline's getSourceMeasure for the full story).
+          if (!Number.isInteger(measureNumber) || measureNumber < 0) continue
+
+          const bb = measure.PositionAndShape
+          boxes.push({
+            measureNumber,
+            systemIndex,
+            left: bb.AbsolutePosition.x + bb.BorderLeft,
+            right: bb.AbsolutePosition.x + bb.BorderRight,
+            top: bb.AbsolutePosition.y + bb.BorderTop,
+            bottom: bb.AbsolutePosition.y + bb.BorderBottom,
+          })
+        }
+      }
+    }
+  }
+
+  return boxes
+}
+
 /**
  * Finds the measure a click landed on, or undefined if it landed too far
  * from any measure.
@@ -24,36 +75,16 @@ const CLICK_TOLERANCE_UNITS = 3
 export function findMeasureNumberAt(osmd: OpenSheetMusicDisplay, point: PointF2D): number | undefined {
   let nearest: { distanceSq: number; measureNumber: number } | undefined
 
-  for (const page of osmd.GraphicSheet.MusicPages) {
-    for (const system of page.MusicSystems) {
-      for (const staffMeasures of system.GraphicalMeasures) {
-        for (const measure of staffMeasures) {
-          const measureNumber = measure.MeasureNumber
-          // Systems can carry ghost measures after the final barline (key /
-          // rhythm change targets) whose MeasureNumber is never set (< 0).
-          // 0 is a real, clickable measure — OSMD numbers a pickup/anacrusis
-          // measure at the start of a piece as 0, not 1 (see
-          // buildExpectedTimeline's getSourceMeasure for the full story).
-          if (!Number.isInteger(measureNumber) || measureNumber < 0) continue
+  for (const box of getMeasureBoundingBoxes(osmd)) {
+    if (point.x >= box.left && point.x <= box.right && point.y >= box.top && point.y <= box.bottom) {
+      return box.measureNumber
+    }
 
-          const bb = measure.PositionAndShape
-          const left = bb.AbsolutePosition.x + bb.BorderLeft
-          const right = bb.AbsolutePosition.x + bb.BorderRight
-          const top = bb.AbsolutePosition.y + bb.BorderTop
-          const bottom = bb.AbsolutePosition.y + bb.BorderBottom
-
-          if (point.x >= left && point.x <= right && point.y >= top && point.y <= bottom) {
-            return measureNumber
-          }
-
-          const dx = Math.max(left - point.x, point.x - right, 0)
-          const dy = Math.max(top - point.y, point.y - bottom, 0)
-          const distanceSq = dx * dx + dy * dy
-          if (!nearest || distanceSq < nearest.distanceSq) {
-            nearest = { distanceSq, measureNumber }
-          }
-        }
-      }
+    const dx = Math.max(box.left - point.x, point.x - box.right, 0)
+    const dy = Math.max(box.top - point.y, point.y - box.bottom, 0)
+    const distanceSq = dx * dx + dy * dy
+    if (!nearest || distanceSq < nearest.distanceSq) {
+      nearest = { distanceSq, measureNumber: box.measureNumber }
     }
   }
 

@@ -16,6 +16,15 @@ export interface Piece {
   createdAt: number
   updatedAt: number
   measureCount: number
+  /**
+   * The tempo this piece is currently being worked up to — the bar a
+   * section has to be played clean at to count as ready. Absent until the
+   * student sets one (and on every piece that predates the setting), in
+   * which case the score's own marked tempo stands in; only the client can
+   * read that out of the MusicXML, so it is resolved there rather than
+   * stored as a default here.
+   */
+  targetTempoBpm?: number
 }
 
 export interface Section {

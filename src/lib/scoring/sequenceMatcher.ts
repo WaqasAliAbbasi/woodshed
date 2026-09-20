@@ -11,11 +11,23 @@ import type { AttemptAggregate, NoteResult } from './types'
  * play the correct note(s) to move on, by design (a drill for note accuracy,
  * not a lenient sight-reading check) — see docs discussion that settled on
  * this over "flag and continue".
+ *
+ * A chord is all-or-nothing: notes played correctly within it are held back
+ * until the whole chord lands, and a wrong note in the middle of one throws
+ * that partial progress away so the chord has to be played again from
+ * scratch. Otherwise a grand-staff chord effectively scores each hand
+ * separately — fumble the right hand and you'd bank the left, then only have
+ * to re-press the hand you missed, which is not what "play this chord" means
+ * and quietly trains the hands apart. There's deliberately no simultaneity
+ * window on top of that: the mode has no clock (see PracticeMode), so
+ * "together" means "with nothing wrong in between", not "within N ms".
  */
 export class SequenceMatcher {
   private readonly events: ExpectedChordEvent[]
   private readonly totalExpected: number
   private readonly results: NoteResult[] = []
+  /** Correct notes of the chord in progress, not yet committed to `results` — flushed when the chord completes, dropped if a wrong note resets it. */
+  private chordResults: NoteResult[] = []
   private chordIndex = 0
   private remaining: Map<number, RemainingNote[]>
   private finalized = false
@@ -41,7 +53,7 @@ export class SequenceMatcher {
     return this.events[this.chordIndex]
   }
 
-  /** Graphical notes in the current chord not yet correctly played — for flashing "try again" feedback on a wrong note without re-coloring notes in the same chord already played correctly. */
+  /** Graphical notes in the current chord not yet correctly played — what "try again" feedback flashes. After a wrong note that's the whole chord again (see noteOn), so a half-played chord's green notes get repainted along with the rest. */
   get currentRemainingGraphicalNotes(): GraphicalNote[] {
     return Array.from(this.remaining.values()).flatMap((notes) => notes.map((n) => n.graphicalNote))
   }
@@ -52,6 +64,10 @@ export class SequenceMatcher {
     if (!remainingForPitch || remainingForPitch.length === 0) {
       const result: NoteResult = { actualMidi: midi, classification: 'extra', velocity, measureNumber: this.currentChord?.measureNumber }
       this.results.push(result)
+      // Start the chord over rather than crediting the notes already played
+      // in it — see the all-or-nothing note in this class's doc.
+      this.chordResults = []
+      this.remaining = this.multisetFor(this.chordIndex)
       return result
     }
 
@@ -67,9 +83,11 @@ export class SequenceMatcher {
       graphicalNote: popped.graphicalNote,
       measureNumber: this.currentChord?.measureNumber,
     }
-    this.results.push(result)
+    this.chordResults.push(result)
 
     if (this.remaining.size === 0) {
+      this.results.push(...this.chordResults)
+      this.chordResults = []
       this.chordIndex++
       this.remaining = this.multisetFor(this.chordIndex)
     }
@@ -77,16 +95,16 @@ export class SequenceMatcher {
     return result
   }
 
-  /** Ends the attempt: the current chord's unplayed notes (if stopped partway through one) plus every chord after it count as missed. */
+  /**
+   * Ends the attempt: the chord in progress plus every chord after it count
+   * as missed. A chord stopped partway through counts as missed *in full*,
+   * including the notes that were played correctly — the same all-or-nothing
+   * rule a wrong note follows, so an abort can't bank half a chord.
+   */
   finalize(): { aggregate: AttemptAggregate; noteResults: NoteResult[] } {
     if (!this.finalized) {
-      const currentMeasureNumber = this.currentChord?.measureNumber
-      for (const [midi, notes] of this.remaining) {
-        for (const { graphicalNote, hand } of notes) {
-          this.results.push({ expectedMidi: midi, classification: 'missed', graphicalNote, hand, measureNumber: currentMeasureNumber })
-        }
-      }
-      for (let i = this.chordIndex + 1; i < this.events.length; i++) {
+      this.chordResults = []
+      for (let i = this.chordIndex; i < this.events.length; i++) {
         const measureNumber = this.events[i].measureNumber
         for (const [midi, notes] of this.multisetFor(i)) {
           for (const { graphicalNote, hand } of notes) {

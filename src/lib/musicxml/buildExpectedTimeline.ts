@@ -120,9 +120,9 @@ export function getCountInBeats(osmd: OpenSheetMusicDisplay, measureNumber: numb
   return nominalBeats * countInMeasures
 }
 
-/** Keep in sync with TempoControl's NumberField min/max. */
-const MIN_TEMPO_BPM = 20
-const MAX_TEMPO_BPM = 240
+/** The practice tempo dial's range — TempoControl's NumberField/slider bounds and the server's validation of a saved target tempo (routes/pieces.ts) both read these, so the range is defined once rather than restated at each end. */
+export const MIN_TEMPO_BPM = 20
+export const MAX_TEMPO_BPM = 240
 const FALLBACK_TEMPO_BPM = 80
 
 /**

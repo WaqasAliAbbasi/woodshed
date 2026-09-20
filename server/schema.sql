@@ -28,7 +28,15 @@ CREATE TABLE IF NOT EXISTS pieces (
   music_xml TEXT NOT NULL,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  measure_count INTEGER NOT NULL
+  measure_count INTEGER NOT NULL,
+  -- The tempo the student is currently working this piece up to: what
+  -- "ready" is judged against, not what any single attempt was played at
+  -- (attempts carry their own tempo_bpm). Nullable because only the client
+  -- can parse the score's own marked tempo out of the MusicXML, so an unset
+  -- target falls back to that. Added after this table shipped — see
+  -- ADDED_COLUMNS in db.ts, which is what actually puts it on an existing
+  -- database; this line only covers databases created from scratch.
+  target_tempo_bpm INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_pieces_user_id ON pieces(user_id);
 CREATE INDEX IF NOT EXISTS idx_pieces_created_at ON pieces(created_at);

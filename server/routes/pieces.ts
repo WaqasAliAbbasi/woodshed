@@ -2,6 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import express, { type Router } from 'express'
 import { getUserId } from '../auth/session.ts'
 import { generateId } from '../../src/lib/id.ts'
+import { MAX_TEMPO_BPM, MIN_TEMPO_BPM } from '../../src/lib/musicxml/buildExpectedTimeline.ts'
 import type { Piece } from '../../src/lib/db/db.ts'
 import * as queries from '../queries.ts'
 
@@ -70,6 +71,29 @@ export function createPiecesRouter(db: DatabaseSync): Router {
     }
     const composer = body?.composer === undefined ? undefined : body.composer.trim() || null
     const updated = queries.updatePiece(db, getUserId(req), req.params.id, { title, composer })
+    if (!updated) {
+      res.status(404).json({ error: 'Piece not found' })
+      return
+    }
+    res.json(updated)
+  })
+
+  // The tempo the student is working this piece up to — what the score's
+  // per-measure progress shading judges "ready" against. Its own route
+  // rather than a field on the PATCH above, which is the rename path and
+  // insists on a title a tempo change has no reason to send.
+  router.patch('/api/pieces/:id/target-tempo', (req, res) => {
+    const targetTempoBpm = (req.body as { targetTempoBpm?: unknown } | undefined)?.targetTempoBpm
+    if (
+      typeof targetTempoBpm !== 'number' ||
+      !Number.isInteger(targetTempoBpm) ||
+      targetTempoBpm < MIN_TEMPO_BPM ||
+      targetTempoBpm > MAX_TEMPO_BPM
+    ) {
+      res.status(400).json({ error: `targetTempoBpm must be an integer between ${MIN_TEMPO_BPM} and ${MAX_TEMPO_BPM}` })
+      return
+    }
+    const updated = queries.updatePieceTargetTempo(db, getUserId(req), req.params.id, targetTempoBpm)
     if (!updated) {
       res.status(404).json({ error: 'Piece not found' })
       return

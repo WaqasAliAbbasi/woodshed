@@ -142,6 +142,23 @@ describe('summarizeSectionProgress: clearedAtTarget', () => {
     expect(summary.status).toBe('struggling')
   })
 
+  it('is false for a Notes-mode section, however clean and however fast the dial said', () => {
+    // Notes mode scores 100%/100% by construction on any completed attempt
+    // (see SequenceMatcher), so without this it would clear every target the
+    // moment the last note landed — see clearedAtTarget's doc comment.
+    const [summary] = summarizeSectionProgress(
+      [section({ mode: 'notes' })],
+      [attempt({ tempoBpm: 200, aggregate: aggregate(1, 1) })],
+      80,
+    )
+    expect(summary.clearedAtTarget).toBe(false)
+  })
+
+  it('is true for a section stored before Notes mode existed — those were all metronome practice', () => {
+    const [summary] = summarizeSectionProgress([section({ mode: undefined })], [attempt({ tempoBpm: 80, aggregate: clean() })], 80)
+    expect(summary.clearedAtTarget).toBe(true)
+  })
+
   it('reverts once the target is raised past what was cleared', () => {
     const attempts = [attempt({ tempoBpm: 80, aggregate: clean() })]
     expect(summarizeSectionProgress([section()], attempts, 80)[0].clearedAtTarget).toBe(true)

@@ -16,6 +16,14 @@ export interface SectionProgress {
    * piece's target tempo — what the score's per-measure shading colors
    * green.
    *
+   * Always false for a Notes-mode section: that mode has no clock (see
+   * PracticeMode), so its attempts are stamped with whatever the tempo dial
+   * happened to say while nothing was actually played against it — and
+   * since SequenceMatcher only ever *finishes* an attempt once every note
+   * has been played correctly, a completed one would clear any target, at
+   * any tempo, every time. Clearing the target is a claim only timed
+   * practice can make.
+   *
    * Deliberately not derived from `latest` the way `status` is. `status`
    * answers "how did it just go", which is what the post-attempt stamp
    * needs; this answers "have I got this yet", which has to survive a slow
@@ -38,6 +46,11 @@ function combinedScore(attempt: Attempt): number {
 function clearsTarget(attempt: Attempt, targetTempoBpm: number): boolean {
   if (attempt.aborted || attempt.tempoBpm < targetTempoBpm) return false
   return classifyAccuracy(attempt.aggregate.pitchAccuracy, timingQuality(attempt.aggregate)) === 'ready'
+}
+
+/** Whether this section's practice is tempo-locked, and so judgeable against a target tempo at all — see `clearedAtTarget`. Sections predating Notes mode have no `mode` stored and were all metronome practice. */
+function isTimed(section: Section): boolean {
+  return (section.mode ?? 'metronome') === 'metronome'
 }
 
 /**
@@ -78,7 +91,8 @@ export function summarizeSectionProgress(
       latest,
       best,
       status: classifyAccuracy(latest.aggregate.pitchAccuracy, timingQuality(latest.aggregate)),
-      clearedAtTarget: targetTempoBpm !== undefined && sectionAttempts.some((a) => clearsTarget(a, targetTempoBpm)),
+      clearedAtTarget:
+        isTimed(section) && targetTempoBpm !== undefined && sectionAttempts.some((a) => clearsTarget(a, targetTempoBpm)),
     })
   }
 

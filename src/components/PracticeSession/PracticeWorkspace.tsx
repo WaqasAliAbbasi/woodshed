@@ -55,14 +55,21 @@ export function PracticeWorkspace({
   const [progress, setProgress] = useState<SectionProgress[]>([])
 
   // Per-measure shading for every measure covered by a section that's been
-  // attempted: green once the section has been played clean at the target
-  // tempo, a neutral "worked on, not there yet" tint otherwise. Where two
-  // overlapping sections disagree on a measure, cleared wins — getting it
-  // in the context of one section is real even if a longer section covering
-  // the same measure hasn't come together yet.
+  // attempted in Metronome mode: green once that section has been played
+  // clean at the target tempo, a neutral "worked on, not there yet" tint
+  // otherwise. Where two overlapping sections disagree on a measure, cleared
+  // wins — getting it in the context of one section is real even if a longer
+  // section covering the same measure hasn't come together yet.
+  //
+  // Notes-mode sections are left out entirely, not just held back from
+  // green. The whole scale here is "how close is this to the target tempo",
+  // and untimed note-reading isn't working toward that tempo at all (see
+  // PracticeMode) — shading a measure off the back of it would grade that
+  // practice against a bar it was never played against.
   const measureStatus = useMemo(() => {
     const statuses = new Map<number, MeasureProgressStatus>()
     for (const { section, clearedAtTarget } of progress) {
+      if ((section.mode ?? 'metronome') !== 'metronome') continue
       const mark: MeasureProgressStatus = clearedAtTarget ? 'ready' : 'inProgress'
       for (let m = section.startMeasure; m <= section.endMeasure; m++) {
         if (mark === 'ready' || statuses.get(m) !== 'ready') statuses.set(m, mark)

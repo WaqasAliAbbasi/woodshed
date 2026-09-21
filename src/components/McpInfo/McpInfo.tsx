@@ -9,7 +9,11 @@ const MCP_TOOLS = [
   { name: 'list_pieces', description: 'Every piece in your library, with when each was last practiced.' },
   { name: 'practice_history', description: 'Recent practice attempts, most recent first — the whole library or one piece.' },
   { name: 'streak', description: 'Your current and longest consecutive-day practice streak.' },
-  { name: 'section_progress', description: 'Per-section status (struggling / progressing / ready) for one piece.' },
+  {
+    name: 'section_progress',
+    description:
+      'Per-section progress for one piece — struggling / progressing / ready for timed practice, clean-pass and wrong-note counts for Notes mode.',
+  },
 ]
 
 /**

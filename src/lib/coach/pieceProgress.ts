@@ -48,8 +48,16 @@ function clearsTarget(attempt: Attempt, targetTempoBpm: number): boolean {
   return classifyAccuracy(attempt.aggregate.pitchAccuracy, timingQuality(attempt.aggregate)) === 'ready'
 }
 
-/** Whether this section's practice is tempo-locked, and so judgeable against a target tempo at all — see `clearedAtTarget`. Sections predating Notes mode have no `mode` stored and were all metronome practice. */
-function isTimed(section: Section): boolean {
+/**
+ * Whether this section's practice is tempo-locked, and so judgeable against
+ * a target tempo at all — see `clearedAtTarget`. Sections predating Notes
+ * mode have no `mode` stored and were all metronome practice.
+ *
+ * Exported because the MCP layer (server/mcp.ts) has to answer the same
+ * question to decide which of an attempt's numbers are worth reporting at
+ * all: in an untimed section, every timing figure is noise.
+ */
+export function isTimedSection(section: Section): boolean {
   return (section.mode ?? 'metronome') === 'metronome'
 }
 
@@ -92,7 +100,7 @@ export function summarizeSectionProgress(
       best,
       status: classifyAccuracy(latest.aggregate.pitchAccuracy, timingQuality(latest.aggregate)),
       clearedAtTarget:
-        isTimed(section) && targetTempoBpm !== undefined && sectionAttempts.some((a) => clearsTarget(a, targetTempoBpm)),
+        isTimedSection(section) && targetTempoBpm !== undefined && sectionAttempts.some((a) => clearsTarget(a, targetTempoBpm)),
     })
   }
 

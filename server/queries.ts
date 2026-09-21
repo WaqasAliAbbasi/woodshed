@@ -322,12 +322,27 @@ export function listPieceOverviews(db: DatabaseSync, userId: string): PieceOverv
 
 export interface RecentAttempt {
   timestamp: number
+  pieceId: string
   pieceTitle: string
+  sectionId: string
   sectionLabel: string
+  startMeasure: number
+  endMeasure: number
   tempoBpm: number
   aborted: boolean
-  pitchAccuracy: number
-  timingAccuracy: number
+  durationMs: number | undefined
+  /** Absent on sections created before Notes mode — treat as 'metronome', same as everywhere else. */
+  mode: Section['mode']
+  /** Absent on sections created before hands-separate practice — treat as 'both'. */
+  handFilter: Section['handFilter']
+  /**
+   * The whole aggregate rather than the two accuracy figures this used to
+   * flatten out: which of them actually *mean* anything depends on the
+   * section's mode (a completed Notes-mode attempt is 100% pitch-accurate
+   * by construction — see SequenceMatcher), so picking them is a judgement
+   * the MCP layer makes, not a shape this query should be hardcoding.
+   */
+  aggregate: Attempt['aggregate']
 }
 
 /**
@@ -346,7 +361,9 @@ export function listRecentAttempts(
   const params = options.pieceId ? [userId, options.pieceId, options.limit] : [userId, options.limit]
   const rows = db
     .prepare(
-      `SELECT a.timestamp, p.title AS piece_title, s.label AS section_label, a.tempo_bpm, a.aborted, a.aggregate
+      `SELECT a.timestamp, a.piece_id, p.title AS piece_title, a.section_id, s.label AS section_label,
+              s.start_measure, s.end_measure, s.mode, s.hand_filter,
+              a.tempo_bpm, a.aborted, a.duration_ms, a.aggregate
        FROM attempts a
        JOIN pieces p ON p.id = a.piece_id
        JOIN sections s ON s.id = a.section_id
@@ -356,22 +373,32 @@ export function listRecentAttempts(
     )
     .all(...params) as unknown as {
     timestamp: number
+    piece_id: string
     piece_title: string
+    section_id: string
     section_label: string
+    start_measure: number
+    end_measure: number
+    mode: string | null
+    hand_filter: string | null
     tempo_bpm: number
     aborted: number
+    duration_ms: number | null
     aggregate: string
   }[]
-  return rows.map((row) => {
-    const aggregate = JSON.parse(row.aggregate) as Attempt['aggregate']
-    return {
-      timestamp: row.timestamp,
-      pieceTitle: row.piece_title,
-      sectionLabel: row.section_label,
-      tempoBpm: row.tempo_bpm,
-      aborted: fromIntBoolean(row.aborted),
-      pitchAccuracy: aggregate.pitchAccuracy,
-      timingAccuracy: aggregate.timingAccuracy,
-    }
-  })
+  return rows.map((row) => ({
+    timestamp: row.timestamp,
+    pieceId: row.piece_id,
+    pieceTitle: row.piece_title,
+    sectionId: row.section_id,
+    sectionLabel: row.section_label,
+    startMeasure: row.start_measure,
+    endMeasure: row.end_measure,
+    tempoBpm: row.tempo_bpm,
+    aborted: fromIntBoolean(row.aborted),
+    durationMs: nullToUndefined(row.duration_ms),
+    mode: nullToUndefined(row.mode) as Section['mode'],
+    handFilter: nullToUndefined(row.hand_filter) as Section['handFilter'],
+    aggregate: JSON.parse(row.aggregate) as Attempt['aggregate'],
+  }))
 }

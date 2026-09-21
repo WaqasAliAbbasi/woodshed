@@ -144,6 +144,7 @@ export function PracticeWorkspace({
         onMeasureClick={handleMeasureClick}
         handFilter={handFilter}
         measureStatus={measureStatus}
+        frozen={!editable}
       />
       {osmd && range && targetTempoBpm !== undefined && (
         <PracticeSession

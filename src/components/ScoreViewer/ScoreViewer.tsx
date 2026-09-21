@@ -28,6 +28,7 @@ export function ScoreViewer({
   onMeasureClick,
   handFilter,
   measureStatus,
+  frozen,
 }: {
   musicXml: string
   onReady: (osmd: OpenSheetMusicDisplay | undefined) => void
@@ -37,8 +38,15 @@ export function ScoreViewer({
   handFilter: HandFilter
   /** Per-measure practice status, washed behind the notation — "ready" in green, "inProgress" (attempted but not yet ready) in a neutral tint. Painted regardless of edit/attempt state. */
   measureStatus: ReadonlyMap<number, MeasureProgressStatus>
+  /**
+   * True from the moment an attempt starts until the session is editable
+   * again — so it also covers reading the result, whose note colors would be
+   * wiped by the same re-render. The score is not re-laid out while it's on;
+   * see useOSMD for what a re-render mid-attempt actually costs.
+   */
+  frozen: boolean
 }) {
-  const { containerRef, osmd, error, zoom, setZoom, renderVersion } = useOSMD(musicXml)
+  const { containerRef, osmd, error, zoom, setZoom, renderVersion } = useOSMD(musicXml, frozen)
   const highlightedNotesRef = useRef<GraphicalNote[]>([])
 
   // Read through a ref so the click listener (attached once per osmd
@@ -179,12 +187,26 @@ export function ScoreViewer({
   return (
     <div className={`score-viewer panel${clickable ? ' score-viewer-clickable' : ''}`}>
       {error && <div className="banner banner-error">Failed to load score: {error}</div>}
-      <div className="zoom-control">
-        <button type="button" aria-label="Zoom out" disabled={zoom <= MIN_ZOOM} onClick={() => setZoom(zoom - ZOOM_STEP)}>
+      {/* Zoom is disabled rather than deferred while frozen: useOSMD would
+          hold the re-render until the attempt ended, so the buttons would
+          appear to do nothing for as long as you're playing. The title sits
+          on the wrapper because a disabled button doesn't show its own. */}
+      <div className="zoom-control" title={frozen ? 'Zoom is locked until the attempt is finished' : undefined}>
+        <button
+          type="button"
+          aria-label="Zoom out"
+          disabled={frozen || zoom <= MIN_ZOOM}
+          onClick={() => setZoom(zoom - ZOOM_STEP)}
+        >
           −
         </button>
         <span className="zoom-level">{Math.round(zoom * 100)}%</span>
-        <button type="button" aria-label="Zoom in" disabled={zoom >= MAX_ZOOM} onClick={() => setZoom(zoom + ZOOM_STEP)}>
+        <button
+          type="button"
+          aria-label="Zoom in"
+          disabled={frozen || zoom >= MAX_ZOOM}
+          onClick={() => setZoom(zoom + ZOOM_STEP)}
+        >
           +
         </button>
       </div>

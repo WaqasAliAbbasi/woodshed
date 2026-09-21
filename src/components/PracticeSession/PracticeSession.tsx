@@ -149,12 +149,12 @@ export function PracticeSession({
       if (mode === 'notes') {
         const sequenceMatcher = sequenceMatcherRef.current
         if (!sequenceMatcher) return
-        const result = sequenceMatcher.noteOn(event.note, event.velocity)
+        const result = sequenceMatcher.noteOn(event.note, event.timeStampMs, event.velocity)
 
         if (result.classification === 'extra') {
-          // Wrong note: the matcher has just reset the chord, so this flashes
-          // the whole thing red — including any note of it already played
-          // green — making it clear the chord starts over rather than
+          // Wrong note: the matcher has just restarted the chord, so this
+          // flashes the whole thing red — including any note of it already
+          // played green — making it clear the chord starts over rather than
           // resuming from the hand that landed (see SequenceMatcher's
           // all-or-nothing chord rule).
           for (const graphicalNote of sequenceMatcher.currentRemainingGraphicalNotes) {
@@ -164,6 +164,24 @@ export function PracticeSession({
           return
         }
 
+        // Repaint the whole chord in progress from the matcher's state
+        // rather than just greening the note that arrived: this note may
+        // have landed too late to belong to the chord its predecessors
+        // started (see CHORD_WINDOW_MS), in which case the matcher has just
+        // thrown those away and their green has to come off with them —
+        // otherwise the score shows credit the matcher didn't give. It also
+        // clears the red from an earlier fumble on this chord, which is
+        // stale the moment a fresh run at it is under way.
+        for (const graphicalNote of sequenceMatcher.currentRemainingGraphicalNotes) {
+          graphicalNote.setColor(getDefaultMusicColor(), { applyToNoteheads: true })
+        }
+        for (const graphicalNote of sequenceMatcher.currentChordGraphicalNotes) {
+          graphicalNote.setColor(CORRECT_COLOR, { applyToNoteheads: true })
+          coloredNotesRef.current.push(graphicalNote)
+        }
+        // The note that *completed* a chord is no longer "in progress" by
+        // the time we get here — the matcher has already moved on to the
+        // next one — so it's colored on its own.
         if (result.graphicalNote) {
           result.graphicalNote.setColor(CORRECT_COLOR, { applyToNoteheads: true })
           coloredNotesRef.current.push(result.graphicalNote)

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { listAllAttempts } from '../../lib/db/attemptsRepo'
 import type { Attempt, PracticeSession } from '../../lib/db/db'
 import { listPieces, type PieceSummary } from '../../lib/db/piecesRepo'
@@ -32,13 +32,24 @@ function Heatmap({ days }: { days: HeatmapDay[] }) {
   const firstDow = new Date(days[0].dayKey).getDay()
   const padded: (HeatmapDay | undefined)[] = [...Array(firstDow).fill(undefined), ...days]
   const maxMinutes = Math.max(1, ...days.map((d) => d.minutes))
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // The grid is wider than the panel (26 weeks of cells), so it scrolls —
+  // and starts scrolled to its left edge by default, which is the oldest
+  // week. Recent practice (the whole point of glancing at this) would sit
+  // just past the right edge, unscrolled-to, on first render. Snap to the
+  // end so today's column is what's actually visible.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollLeft = el.scrollWidth
+  }, [days])
 
   // `grid-auto-flow: column` (see App.css) fills columns top-to-bottom
   // before starting the next one, so 7 cells per column with a fixed
   // `grid-template-rows: repeat(7, 1fr)` is all it takes to lay this out
   // as weeks left-to-right without computing a column count here.
   return (
-    <div className="stats-heatmap">
+    <div className="stats-heatmap" ref={scrollRef}>
       {padded.map((day, i) => {
         if (!day) return <div key={i} className="stats-heatmap-cell stats-heatmap-cell-empty" />
         const intensity = day.minutes === 0 ? 0 : Math.min(1, day.minutes / maxMinutes) * 0.8 + 0.2

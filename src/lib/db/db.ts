@@ -53,6 +53,43 @@ export interface Attempt {
   durationMs?: number
   /** GraphicalNote references are stripped before storage — see StoredNoteResult. */
   noteResults: StoredNoteResult[]
+  /**
+   * The `PracticeSession` this attempt was clustered into — set server-side
+   * at write time (see `server/queries.ts`'s `assignAttemptToSession`), so
+   * this is always absent on the object the client builds *before* posting
+   * it (`attemptsRepo.ts`'s `recordAttempt`) and only appears once it's
+   * read back from `/api/*`. Absent on attempts recorded before session
+   * clustering existed only until the boot backfill runs, same as every
+   * other `ADDED_COLUMNS` field.
+   */
+  sessionId?: string
+}
+
+/**
+ * A bounded stretch of practice — see `server/schema.sql`'s
+ * `practice_sessions` doc comment for the derived/manual distinction this
+ * type doesn't repeat here. `startedAt`/`endedAt` on a derived session are
+ * owned by the clustering rule and move as more attempts land; on a manual
+ * session they're exactly what was entered.
+ */
+export interface PracticeSession {
+  id: string
+  startedAt: number
+  endedAt: number
+  source: 'derived' | 'manual'
+  /** Manual only — e.g. "Scales", "Lesson". Undefined on a derived session. */
+  label?: string
+  /** Manual only, and optional even there — the piece this practice was on, if it names one. */
+  pieceId?: string
+  note?: string
+  createdAt: number
+  updatedAt: number
+  /** How many attempts this session contains. 0 for a manual session (it never absorbs attempts — see schema.sql). */
+  attemptCount: number
+  /** Sum of `Attempt.durationMs` across this session's attempts — "scored" time, a subset of the session's full span (`endedAt - startedAt`). 0 for a manual session. */
+  scoredMs: number
+  /** Distinct piece ids this session's attempts touched, in first-touched order. Empty for a manual session with no `pieceId`. */
+  pieceIds: string[]
 }
 
 interface WoodshedDbSchema extends DBSchema {

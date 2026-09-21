@@ -55,6 +55,16 @@ export function openDb(dbPath: string): DatabaseSync {
  */
 const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: 'pieces', column: 'target_tempo_bpm', definition: 'INTEGER' },
+  // Which practice_sessions row this attempt was clustered into — see
+  // schema.sql's doc comment on that table and queries.ts's
+  // assignAttemptToSession. Nullable, and stays that way transiently even
+  // on a fresh insert: recordAttempt's own transaction is what sets it,
+  // not a DEFAULT here. ON DELETE SET NULL (not CASCADE, and not
+  // expressible via ALTER TABLE ADD COLUMN on SQLite anyway) is enforced
+  // in application code instead — see deleteSession, which only ever
+  // allows deleting a manual session, and getSession's practice_sessions
+  // rows are never the target of a piece cascade.
+  { table: 'attempts', column: 'session_id', definition: 'TEXT REFERENCES practice_sessions(id)' },
 ]
 
 function addMissingColumns(db: DatabaseSync): void {

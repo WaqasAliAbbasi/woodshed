@@ -5,11 +5,16 @@ import { InputSourceSelector } from './components/InputSourceSelector/InputSourc
 import { useMidiInput } from './components/InputSourceSelector/useMidiInput'
 import { McpInfoLink } from './components/McpInfo/McpInfo'
 import { PieceLibrary } from './components/PieceLibrary/PieceLibrary'
+import { SessionsView } from './components/Sessions/SessionsView'
+import { StatsView } from './components/Stats/StatsView'
 import { TargetTempoChip } from './components/TempoControl/TargetTempoChip'
 import { flushOutbox } from './lib/db/attemptsRepo'
 import { updatePiece, updateTargetTempo } from './lib/db/piecesRepo'
 import { getTempoPresets } from './lib/musicxml/buildExpectedTimeline'
 import type { Piece } from './lib/db/db'
+
+/** The three top-level things there are to look at before opening a piece — see the nav rendered in the no-piece-selected branch of `App`, below. */
+type TopLevelView = 'library' | 'sessions' | 'stats'
 
 // Pulls in OpenSheetMusicDisplay, by far the heaviest dependency in the
 // app, so it's kept out of the initial bundle and only fetched once a
@@ -177,6 +182,11 @@ function LogoutButton() {
 
 function App() {
   const [piece, setPiece] = useState<Piece | undefined>(undefined)
+  // Only meaningful while no piece is open — see the `!piece` branch below.
+  // Not reset on opening/closing a piece: landing back on whichever
+  // top-level view the student was on before opening a piece (not always
+  // the library) is the less surprising behavior of the two.
+  const [topLevelView, setTopLevelView] = useState<TopLevelView>('library')
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
   // The score's own marked tempo, reported up once PracticeWorkspace has a
   // parsed score. Stands in as the target until the student sets one, and
@@ -239,7 +249,27 @@ function App() {
           <h1>Woodshed</h1>
           <LogoutButton />
         </header>
-        <PieceLibrary onSelect={setPiece} />
+        <nav className="top-nav" aria-label="Sections">
+          {(
+            [
+              ['library', 'Library'],
+              ['sessions', 'Sessions'],
+              ['stats', 'Stats'],
+            ] as const
+          ).map(([view, label]) => (
+            <button
+              key={view}
+              type="button"
+              className={`top-nav-btn${topLevelView === view ? ' top-nav-btn-active' : ''}`}
+              onClick={() => setTopLevelView(view)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+        {topLevelView === 'library' && <PieceLibrary onSelect={setPiece} />}
+        {topLevelView === 'sessions' && <SessionsView />}
+        {topLevelView === 'stats' && <StatsView />}
         <AppFooter />
       </main>
     )

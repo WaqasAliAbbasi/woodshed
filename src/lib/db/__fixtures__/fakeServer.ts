@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import type { Attempt, Piece, Section } from '../db'
+import type { Attempt, Piece, PracticeSession, Section } from '../db'
 
 /**
  * An in-memory stand-in for `server/`'s REST API, close enough to its real
@@ -14,6 +14,12 @@ export function installFakeServer() {
   const pieces = new Map<string, Piece>()
   const sections = new Map<string, Section>()
   const attempts = new Map<string, Attempt>()
+  // No clustering simulation here — this fake only exercises sessionsRepo's
+  // CRUD wiring, not `assignAttemptToSession`'s clustering rule (covered
+  // server-side; see server/queries.ts and src/lib/sessions.test.ts). A
+  // test that needs a *derived* session to already exist inserts one
+  // directly into this map before exercising the repo under test.
+  const sessions = new Map<string, PracticeSession>()
   let nextId = 0
   const generateId = () => `fake-${++nextId}`
 
@@ -105,6 +111,59 @@ export function installFakeServer() {
       return json(Array.from(attempts.values()).map((a) => ({ pieceId: a.pieceId, timestamp: a.timestamp, durationMs: a.durationMs })))
     }
 
+    if ((m = path.match(/^\/api\/sessions(?:\?(.*))?$/)) && method === 'GET') {
+      const params = new URLSearchParams(m[1] ?? '')
+      const since = params.get('since') ? Number(params.get('since')) : undefined
+      const limit = params.get('limit') ? Number(params.get('limit')) : undefined
+      let list = Array.from(sessions.values())
+        .filter((s) => since === undefined || s.startedAt >= since)
+        .sort((a, b) => b.startedAt - a.startedAt)
+      if (limit !== undefined) list = list.slice(0, limit)
+      return json(list)
+    }
+    if (path === '/api/sessions' && method === 'POST') {
+      const input = body as { startedAt: number; endedAt: number; label?: string; pieceId?: string; note?: string }
+      const now = Date.now()
+      const session: PracticeSession = {
+        id: generateId(),
+        startedAt: input.startedAt,
+        endedAt: input.endedAt,
+        source: 'manual',
+        label: input.label,
+        pieceId: input.pieceId,
+        note: input.note,
+        createdAt: now,
+        updatedAt: now,
+        attemptCount: 0,
+        scoredMs: 0,
+        pieceIds: input.pieceId ? [input.pieceId] : [],
+      }
+      sessions.set(session.id, session)
+      return json(session, 201)
+    }
+    if ((m = path.match(/^\/api\/sessions\/([^/]+)$/)) && method === 'PATCH') {
+      const session = sessions.get(m[1])
+      if (!session) return json({ error: 'Session not found' }, 404)
+      const updates = body as { note?: string | null; label?: string | null; pieceId?: string | null; startedAt?: number; endedAt?: number }
+      if (updates.note !== undefined) session.note = updates.note ?? undefined
+      if (updates.label !== undefined) session.label = updates.label ?? undefined
+      if (updates.pieceId !== undefined) {
+        session.pieceId = updates.pieceId ?? undefined
+        session.pieceIds = session.pieceId ? [session.pieceId] : []
+      }
+      if (updates.startedAt !== undefined) session.startedAt = updates.startedAt
+      if (updates.endedAt !== undefined) session.endedAt = updates.endedAt
+      session.updatedAt = Date.now()
+      return json(session)
+    }
+    if ((m = path.match(/^\/api\/sessions\/([^/]+)$/)) && method === 'DELETE') {
+      const session = sessions.get(m[1])
+      if (!session) return json({ error: 'Session not found' }, 404)
+      if (session.source !== 'manual') return json({ error: 'Only manual sessions can be deleted' }, 400)
+      sessions.delete(m[1])
+      return json(undefined, 204)
+    }
+
     throw new Error(`fakeServer: unhandled ${method} ${path}`)
   }
 
@@ -122,11 +181,13 @@ export function installFakeServer() {
       pieces.clear()
       sections.clear()
       attempts.clear()
+      sessions.clear()
       nextId = 0
       fetchMock.mockClear()
     },
     pieces,
     sections,
     attempts,
+    sessions,
   }
 }

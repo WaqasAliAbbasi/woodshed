@@ -5,8 +5,15 @@
  */
 const DAY_BOUNDARY_HOUR = 4
 
-/** Maps a timestamp to the "practice day" it belongs to, as a local-midnight epoch ms, after applying the day-boundary shift. */
-function practiceDayKey(timestampMs: number): number {
+/**
+ * Maps a timestamp to the "practice day" it belongs to, as a local-midnight
+ * epoch ms, after applying the day-boundary shift. Exported so anything
+ * else grouping practice by day (the Sessions view's day headers) uses the
+ * exact same 4am boundary the streak does — two different answers for
+ * "which day did this session belong to" would be a confusing thing to
+ * show on the same screen as the streak figure.
+ */
+export function practiceDayKey(timestampMs: number): number {
   const shifted = new Date(timestampMs - DAY_BOUNDARY_HOUR * 60 * 60 * 1000)
   return new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate()).getTime()
 }

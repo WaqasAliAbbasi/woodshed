@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { listAllAttempts } from '../../lib/db/attemptsRepo'
 import { createPiece, deletePiece, getPiece, listPieces, type PieceSummary } from '../../lib/db/piecesRepo'
+import { listSessions } from '../../lib/db/sessionsRepo'
 import type { Piece } from '../../lib/db/db'
 import { parseMusicXmlMetadata } from '../../lib/musicxml/parseMetadata'
 import { isIOS } from '../../lib/platform'
@@ -18,10 +19,15 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const refresh = () =>
-    Promise.all([listPieces(), listAllAttempts()]).then(([loadedPieces, attempts]) => {
+    Promise.all([listPieces(), listAllAttempts(), listSessions()]).then(([loadedPieces, attempts, sessions]) => {
       setPieces(loadedPieces)
       setStatsByPieceId(buildPieceStatsMap(attempts))
-      setStreak(computeStreak(attempts))
+      // Sessions, not attempts: a session's `startedAt` also covers manual
+      // entries (practice away from the keyboard, a piece with no score
+      // uploaded) — see docs/sessions-plan.md. Reading the streak off
+      // attempts alone would keep breaking on exactly the days manual
+      // logging exists to cover.
+      setStreak(computeStreak(sessions.map((s) => ({ timestamp: s.startedAt }))))
     })
 
   useEffect(() => {

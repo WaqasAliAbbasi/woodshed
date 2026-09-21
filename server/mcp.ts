@@ -5,6 +5,7 @@ import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middlew
 import type { OAuthServerProvider } from '@modelcontextprotocol/sdk/server/auth/provider.js'
 import express, { type Router } from 'express'
 import { z } from 'zod'
+import type { PracticeSession } from '../src/lib/db/db.ts'
 import type { AttemptAggregate, PracticeMode } from '../src/lib/scoring/types.ts'
 import { isTimedSection, summarizeSectionProgress } from '../src/lib/coach/pieceProgress.ts'
 import { isReadyToStopLooping, SECTION_STATUS_LABEL, timingQuality } from '../src/lib/coach/suggestNextStep.ts'
@@ -21,7 +22,7 @@ import * as queries from './queries.ts'
  * nothing. Stating the thresholds keeps advice here consistent with the
  * status the app itself shows for the same attempt.
  */
-const SERVER_INSTRUCTIONS = `Woodshed is this user's piano practice log. They upload a score, drag out a *section* (a range of measures), and play it on a MIDI keyboard; each run is an *attempt*, scored note by note. These tools are read-only — you can see the practice record, not change it.
+const SERVER_INSTRUCTIONS = `Woodshed is this user's piano practice log. They upload a score, drag out a *section* (a range of measures), and play it on a MIDI keyboard; each run is an *attempt*, scored note by note. Most of these tools are read-only — pieces, sections, and attempts can only be seen here, not changed. The one writable surface is practice_sessions: create_manual_session logs a stretch of practice this app didn't witness (a lesson, a piece with no score uploaded, or old practice from before this history existed — see its own description for backfilling), and update_session edits a session's note, label, or piece — on a 'derived' session too, not just a manual one. Use update_session's note freely as the place to write up what a lesson covered or what a backfilled session was about; it's the student's own account, read back alongside the measured numbers, not a replacement for them.
 
 Reading the numbers (all accuracies are whole-number percentages):
 - pitchAccuracyPct — how many of the expected notes were played correctly.
@@ -145,18 +146,51 @@ function jsonResult(payload: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }] }
 }
 
+/** A tool-level failure (bad id, bad date, unowned piece) — `isError` so the client sees this as a failed call, not a normal result that happens to say "error". */
+function errorResult(message: string) {
+  return { content: [{ type: 'text' as const, text: message }], isError: true }
+}
+
 /**
- * Registers the read-only tools Claude gets over MCP, scoped to one
- * `userId` — the user who clicked Allow on the consent screen for the
- * access token this request carries (see oauth/provider.ts's `extra:
- * {userId}` and the /mcp handler below, which is what makes a fresh
- * `McpServer` per request rather than one shared instance: the user a
- * given call is scoped to isn't known until that request's token is
- * verified). Reuses the exact same scoring/coaching logic the app's own UI
- * is built on (`summarizeSectionProgress`, `computeStreak`), so "what does
- * Claude see" and "what does the app show" can't quietly drift apart. No
- * write tools: there's no practice-data mutation an LLM should be doing on
- * your behalf here, only reading it.
+ * The read view of a `practice_sessions` row — shared by the `practice_sessions`
+ * list tool and by `create_manual_session`/`update_session`, so a caller sees
+ * the same shape whether it's reading a list or the one row it just wrote.
+ * Includes `id`, unlike the other read tools' rows, since it's the one thing
+ * a later `update_session` call needs to target this session again.
+ */
+function describeSession(session: PracticeSession, pieceTitleById: Map<string, string>, now: number) {
+  return {
+    id: session.id,
+    ...describeInstant(session.startedAt, now),
+    durationMin: Math.round((session.endedAt - session.startedAt) / 60_000),
+    source: session.source,
+    label: session.label,
+    pieces: session.pieceIds.map((id) => pieceTitleById.get(id) ?? id),
+    attemptCount: session.attemptCount,
+    scoredMin: Math.round(session.scoredMs / 60_000),
+    note: session.note,
+  }
+}
+
+/** `describeSession` needs piece titles for whichever session(s) it's given — built fresh per call rather than threaded through, since none of these tools are hot paths. */
+function pieceTitlesFor(db: DatabaseSync, userId: string): Map<string, string> {
+  return new Map(queries.listPieceSummaries(db, userId).map((p) => [p.id, p.title]))
+}
+
+/**
+ * Registers the tools Claude gets over MCP, scoped to one `userId` — the
+ * user who clicked Allow on the consent screen for the access token this
+ * request carries (see oauth/provider.ts's `extra: {userId}` and the /mcp
+ * handler below, which is what makes a fresh `McpServer` per request rather
+ * than one shared instance: the user a given call is scoped to isn't known
+ * until that request's token is verified). Reuses the exact same
+ * scoring/coaching logic the app's own UI is built on
+ * (`summarizeSectionProgress`, `computeStreak`), so "what does Claude see"
+ * and "what does the app show" can't quietly drift apart. Almost everything
+ * here is read-only; the one exception is `practice_sessions` itself —
+ * `create_manual_session` and `update_session` let an LLM log or annotate a
+ * stretch of practice, the same write surface routes/sessions.ts gives the
+ * app's own UI, but never touch a piece, section, or attempt directly.
  */
 function buildMcpServer(db: DatabaseSync, userId: string): McpServer {
   const server = new McpServer({ name: 'woodshed', version: '1.0.0' }, { instructions: SERVER_INSTRUCTIONS })
@@ -260,18 +294,98 @@ function buildMcpServer(db: DatabaseSync, userId: string): McpServer {
     },
     async ({ limit }) => {
       const now = Date.now()
-      const pieceTitleById = new Map(queries.listPieceSummaries(db, userId).map((p) => [p.id, p.title]))
-      const sessions = queries.listSessions(db, userId, { limit: limit ?? 20 }).map((session) => ({
-        ...describeInstant(session.startedAt, now),
-        durationMin: Math.round((session.endedAt - session.startedAt) / 60_000),
-        source: session.source,
-        label: session.label,
-        pieces: session.pieceIds.map((id) => pieceTitleById.get(id) ?? id),
-        attemptCount: session.attemptCount,
-        scoredMin: Math.round(session.scoredMs / 60_000),
-        note: session.note,
-      }))
+      const pieceTitleById = pieceTitlesFor(db, userId)
+      const sessions = queries
+        .listSessions(db, userId, { limit: limit ?? 20 })
+        .map((session) => describeSession(session, pieceTitleById, now))
       return jsonResult(sessions)
+    },
+  )
+
+  server.registerTool(
+    'create_manual_session',
+    {
+      title: 'Log a manual practice session',
+      description:
+        "Log a stretch of practice this app didn't witness — a lesson, practice away from the keyboard, a piece with no score uploaded here, or backfilling old practice from before this history existed. Creates a 'manual' session (see practice_sessions): it has no attempts and no score, just a time range and whatever's said about it. When backfilling from memory, a reasonable estimate for the times is fine — it doesn't need to be exact, and it's fine to log several sessions in a row this way.",
+      inputSchema: {
+        startedAt: z.string().describe('When the practice started, as an ISO-8601 date-time, e.g. "2026-03-04T15:00:00".'),
+        endedAt: z.string().describe('When the practice ended, as an ISO-8601 date-time. Must not be before startedAt.'),
+        label: z.string().optional().describe('A short name for the session, e.g. "Lesson with Maria". Omit for none.'),
+        pieceId: z
+          .string()
+          .optional()
+          .describe('A piece id from list_pieces, if this session was about one piece in particular. Omit otherwise.'),
+        note: z
+          .string()
+          .optional()
+          .describe("The student's own account of the session — what was covered, how it went, what to work on next."),
+      },
+    },
+    async ({ startedAt, endedAt, label, pieceId, note }) => {
+      const startedMs = Date.parse(startedAt)
+      const endedMs = Date.parse(endedAt)
+      if (Number.isNaN(startedMs) || Number.isNaN(endedMs)) {
+        return errorResult('startedAt and endedAt must be valid ISO-8601 date-times.')
+      }
+      if (endedMs < startedMs) return errorResult('endedAt must not be before startedAt.')
+      if (pieceId !== undefined && !queries.ownsPiece(db, userId, pieceId)) {
+        return errorResult(`No piece with id "${pieceId}" — check list_pieces.`)
+      }
+      const session = queries.createManualSession(db, userId, { startedAt: startedMs, endedAt: endedMs, label, pieceId, note })
+      return jsonResult(describeSession(session, pieceTitlesFor(db, userId), Date.now()))
+    },
+  )
+
+  server.registerTool(
+    'update_session',
+    {
+      title: 'Edit a practice session',
+      description:
+        "Edit a practice session by id (see practice_sessions) — its note, label, and/or the piece it's associated with. Works on a 'derived' session as well as a 'manual' one, since the note is where a student's account of a session lives either way. To clear a field rather than change it, pass an empty string. startedAt/endedAt can only be set on a 'manual' session — a derived session's time range follows the attempts in it.",
+      inputSchema: {
+        sessionId: z.string().describe('A session id from practice_sessions.'),
+        note: z.string().optional().describe('New note text. Pass "" to clear it. Omit to leave unchanged.'),
+        label: z.string().optional().describe('New label. Pass "" to clear it. Omit to leave unchanged.'),
+        pieceId: z
+          .string()
+          .optional()
+          .describe('New piece id from list_pieces to associate with this session. Pass "" to clear it. Omit to leave unchanged.'),
+        startedAt: z.string().optional().describe('New start time, ISO-8601 — manual sessions only. Omit to leave unchanged.'),
+        endedAt: z.string().optional().describe('New end time, ISO-8601 — manual sessions only. Omit to leave unchanged.'),
+      },
+    },
+    async ({ sessionId, note, label, pieceId, startedAt, endedAt }) => {
+      const existing = queries.getSession(db, userId, sessionId)
+      if (!existing) return errorResult(`No session with id "${sessionId}" — check practice_sessions.`)
+      if (existing.source === 'derived' && (startedAt !== undefined || endedAt !== undefined)) {
+        return errorResult("A derived session's start/end time follows the attempts in it and can't be edited directly.")
+      }
+
+      const updates: Parameters<typeof queries.updateSession>[3] = {}
+      if (note !== undefined) updates.note = note.trim() === '' ? null : note.trim()
+      if (label !== undefined) updates.label = label.trim() === '' ? null : label.trim()
+      if (pieceId !== undefined) {
+        if (pieceId === '') {
+          updates.pieceId = null
+        } else {
+          if (!queries.ownsPiece(db, userId, pieceId)) return errorResult(`No piece with id "${pieceId}" — check list_pieces.`)
+          updates.pieceId = pieceId
+        }
+      }
+      if (startedAt !== undefined) {
+        const ms = Date.parse(startedAt)
+        if (Number.isNaN(ms)) return errorResult('startedAt must be a valid ISO-8601 date-time.')
+        updates.startedAt = ms
+      }
+      if (endedAt !== undefined) {
+        const ms = Date.parse(endedAt)
+        if (Number.isNaN(ms)) return errorResult('endedAt must be a valid ISO-8601 date-time.')
+        updates.endedAt = ms
+      }
+
+      const updated = queries.updateSession(db, userId, sessionId, updates)!
+      return jsonResult(describeSession(updated, pieceTitlesFor(db, userId), Date.now()))
     },
   )
 

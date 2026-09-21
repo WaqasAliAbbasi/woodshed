@@ -39,12 +39,15 @@ seeing their library or theirs seeing yours.
   (struggling/progressing/ready) shown after each attempt, and see a
   history log of past attempts.
 - **See your current practice streak** at the top of your piece library.
-- **Let Claude read your practice history over MCP.** `/mcp` is a
-  Streamable HTTP MCP server with `list_pieces`, `practice_history`,
-  `streak`, and `section_progress` tools, authenticated via OAuth 2.1 — add
-  it as a custom connector at [claude.ai](https://claude.ai) (or in Claude
-  Code) pointed at `https://woodshed.waqasali.dev/mcp` and approve it once
-  you're logged in.
+- **Let Claude read — and partly log — your practice history over MCP.**
+  `/mcp` is a Streamable HTTP MCP server with `list_pieces`,
+  `practice_history`, `practice_sessions`, `streak`, and `section_progress`
+  read tools, plus `create_manual_session` and `update_session` for logging
+  practice the app didn't witness (a lesson, backfilling old practice from
+  memory) and writing up notes on any session, authenticated via OAuth 2.1
+  — add it as a custom connector at [claude.ai](https://claude.ai) (or in
+  Claude Code) pointed at `https://woodshed.waqasali.dev/mcp` and approve it
+  once you're logged in.
 
 ## Getting started
 

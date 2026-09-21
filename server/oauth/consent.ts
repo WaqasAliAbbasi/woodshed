@@ -76,7 +76,7 @@ export function createConsentRouter(db: DatabaseSync): Router {
       page(`
       <div class="card">
         <h1>Authorize ${clientName}</h1>
-        <p>${clientName} wants to read your Woodshed practice history — pieces, sections, and attempt results.</p>
+        <p>${clientName} wants to read your Woodshed practice history — pieces, sections, and attempt results — and to log or annotate practice sessions on your behalf.</p>
         <form method="POST" action="/oauth/consent/approve">
           <input type="hidden" name="txn" value="${escapeHtml(txnId)}" />
           <div class="actions">

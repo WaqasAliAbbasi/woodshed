@@ -152,7 +152,7 @@ app.use(
     issuerUrl: publicUrl,
     resourceServerUrl: new URL('/mcp', publicUrl),
     resourceName: 'Woodshed',
-    scopesSupported: ['woodshed:read'],
+    scopesSupported: ['woodshed:read', 'woodshed:write'],
   }),
 )
 app.use(createConsentRouter(db))

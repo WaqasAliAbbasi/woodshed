@@ -15,6 +15,14 @@ const MCP_TOOLS = [
     description:
       'Per-section progress for one piece — struggling / progressing / ready for timed practice, clean-pass and wrong-note counts for Notes mode.',
   },
+  {
+    name: 'create_manual_session',
+    description: "Log a practice session this app didn't witness — a lesson, or backfilling old practice from memory.",
+  },
+  {
+    name: 'update_session',
+    description: "Edit a session's note, label, or piece — on a derived session too, not just a manual one.",
+  },
 ]
 
 /**
@@ -62,7 +70,7 @@ export function McpInfoLink() {
                 MCP
               </a>{' '}
               (Model Context Protocol) is an open standard that lets an AI assistant read data from an app
-              on your behalf, with your permission. Woodshed runs a read-only MCP server at{' '}
+              on your behalf, with your permission. Woodshed runs an MCP server at{' '}
               <code>/mcp</code> that any MCP-compatible client can connect to — Claude.ai and Claude Code
               both support it today as a "custom connector."
             </p>
@@ -75,8 +83,10 @@ export function McpInfoLink() {
               ))}
             </ul>
             <p className="mcp-info-note">
-              Read-only: a connected client can look at your pieces, history, streak, and progress, but
-              can't upload a piece, start an attempt, or change anything for you.
+              Mostly read-only: a connected client can look at your pieces, history, streak, and progress,
+              but can't upload a piece, start an attempt, or touch a section. The one thing it can write is
+              a practice session — logging one you did away from the app, or adding a note to one that's
+              already there.
             </p>
             <p className="mcp-info-label">Connect it</p>
             <ol className="mcp-info-steps">

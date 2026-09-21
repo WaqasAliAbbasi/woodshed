@@ -38,6 +38,8 @@ Section status is computed from the most recent attempt, by the same rule the ap
 
 clearedAtTarget means the section has at some point been played at or above the piece's target tempo, run to the end, and clean by the "ready" bar — the nearest thing here to "they've got this". null means the question doesn't apply: an untimed section, or no target tempo set on the piece.
 
+A *session* (see practice_sessions) is a bounded stretch of practice, distinct from an attempt: an attempt is one scored run of one section, a session is everything practiced in one sitting. 'derived' sessions are built automatically by clustering recorded attempts that are close together in time — pieces/attemptCount/scoredMin describe what was actually scored during it. 'manual' sessions are logged by hand for practice this app didn't witness (away from the keyboard, a piece with no score uploaded, a lesson) and always have attemptCount 0 and scoredMin 0 — that is not a bad or empty session, it just wasn't scored. The streak (see streak) is computed from sessions, not attempts, specifically so manually-logged practice keeps it honest. A session's note, when present, is the student's own account of it — weight it alongside the measured numbers, not as a substitute for them, and don't assume its absence means the session went badly.
+
 Timestamps are UTC instants; the streak's lastPracticedDay is a calendar practice day, running 4am to 4am. This server doesn't know the student's timezone, so treat day counts near midnight as approximate.`
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
@@ -227,14 +229,49 @@ function buildMcpServer(db: DatabaseSync, userId: string): McpServer {
     },
     async () => {
       const now = Date.now()
-      const attempts = queries.listAttemptSummaries(db, userId)
-      const { current, longest, lastPracticedDay } = computeStreak(attempts, now)
+      // Streak is computed from sessions, not raw attempts — a session's
+      // startedAt also covers manually-logged practice (see
+      // practice_sessions' description in SERVER_INSTRUCTIONS), so this
+      // reads the same streak the app itself now shows.
+      const sessions = queries.listSessions(db, userId)
+      const { current, longest, lastPracticedDay } = computeStreak(
+        sessions.map((s) => ({ timestamp: s.startedAt })),
+        now,
+      )
       return jsonResult({
         currentDays: current,
         longestDays: longest,
         lastPracticedDay: lastPracticedDay === undefined ? undefined : describeDayKey(lastPracticedDay, now),
-        totalAttempts: attempts.length,
+        totalAttempts: queries.listAttemptSummaries(db, userId).length,
+        totalSessions: sessions.length,
       })
+    },
+  )
+
+  server.registerTool(
+    'practice_sessions',
+    {
+      title: 'Practice sessions',
+      description:
+        "Recent practice sessions, most recent first — a session is a bounded stretch of practice (minutes actually spent at the piano), distinct from an attempt (one scored run of one section). A 'derived' session was built automatically from recorded attempts; a 'manual' one was logged by hand for practice this app didn't witness (see this server's instructions) and has no attempts, no score, and no pieces unless one was named. `note`, on either kind, is the one place a student's own account of a session — how it felt, what to work on next — lives; read it alongside a session's `pieces` and `attemptCount`, not instead of them.",
+      inputSchema: {
+        limit: z.number().int().positive().max(100).optional().describe('Max sessions to return. Defaults to 20.'),
+      },
+    },
+    async ({ limit }) => {
+      const now = Date.now()
+      const pieceTitleById = new Map(queries.listPieceSummaries(db, userId).map((p) => [p.id, p.title]))
+      const sessions = queries.listSessions(db, userId, { limit: limit ?? 20 }).map((session) => ({
+        ...describeInstant(session.startedAt, now),
+        durationMin: Math.round((session.endedAt - session.startedAt) / 60_000),
+        source: session.source,
+        label: session.label,
+        pieces: session.pieceIds.map((id) => pieceTitleById.get(id) ?? id),
+        attemptCount: session.attemptCount,
+        scoredMin: Math.round(session.scoredMs / 60_000),
+        note: session.note,
+      }))
+      return jsonResult(sessions)
     },
   )
 

@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 
-// The four tools server/mcp.ts actually registers, kept here as plain data
-// so this panel can't describe a tool that doesn't exist (or forget one
-// that does) — if mcp.ts's tool list changes, this is the other place to
+// The tools server/mcp.ts actually registers, kept here as plain data so
+// this panel can't describe a tool that doesn't exist (or forget one that
+// does) — if mcp.ts's tool list changes, this is the other place to
 // update, there's no shared source to import from without pulling the MCP
-// SDK into the client bundle for four strings.
+// SDK into the client bundle for a handful of strings.
 const MCP_TOOLS = [
   { name: 'list_pieces', description: 'Every piece in your library, with when each was last practiced.' },
   { name: 'practice_history', description: 'Recent practice attempts, most recent first — the whole library or one piece.' },
+  { name: 'practice_sessions', description: 'Recent practice sessions, derived and manually logged, with their notes.' },
   { name: 'streak', description: 'Your current and longest consecutive-day practice streak.' },
   {
     name: 'section_progress',

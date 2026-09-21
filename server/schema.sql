@@ -79,6 +79,44 @@ CREATE INDEX IF NOT EXISTS idx_attempts_section_id ON attempts(section_id);
 CREATE INDEX IF NOT EXISTS idx_attempts_piece_id ON attempts(piece_id);
 CREATE INDEX IF NOT EXISTS idx_attempts_user_id_timestamp ON attempts(user_id, timestamp);
 
+-- A bounded stretch of practice — the unit `src/components/Sessions/`
+-- shows, distinct from an *attempt* (one scored run of one section). Named
+-- `practice_sessions`, not `sessions`, to avoid colliding with the login
+-- session table right below this one — two tables called "sessions" in one
+-- schema is a bug waiting to be written.
+--
+-- Two kinds, one table (`source`):
+--   'derived' — built automatically from recorded attempts by clustering
+--     them on a gap threshold (see src/lib/sessions.ts, and
+--     queries.ts's assignAttemptToSession, which both creates and keeps
+--     merging these as attempts land — see its own doc comment for why an
+--     attempt can widen or merge existing sessions, not just append to
+--     the most recent one).
+--   'manual' — entered by hand for practice Woodshed didn't witness (away
+--     from the keyboard, a piece with no score uploaded, a lesson). Never
+--     absorbs attempts — see assignAttemptToSession, which only matches
+--     against 'derived' sessions.
+-- `piece_id`/`label` are manual-only (a derived session can span more than
+-- one piece in one sitting, so it has no single piece to name — see the
+-- distinct-pieces-touched query instead). `note` is common to both: the
+-- whole point of a session existing as a row, not just a computed view
+-- over attempts, is giving practice something stable to attach a note to
+-- after the fact — see docs/sessions-plan.md's "Why sessions are stored
+-- rows, not derived on read".
+CREATE TABLE IF NOT EXISTS practice_sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  started_at INTEGER NOT NULL,
+  ended_at INTEGER NOT NULL,
+  source TEXT NOT NULL,
+  label TEXT,
+  piece_id TEXT REFERENCES pieces(id) ON DELETE SET NULL,
+  note TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_practice_sessions_user_started ON practice_sessions(user_id, started_at);
+
 -- Login session (see server/auth/session.ts). Opaque bearer token in an
 -- HttpOnly cookie, not a JWT — makes "log out everywhere" for one user (or
 -- a password rotation) a one-row delete instead of a key rotation that

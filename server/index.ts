@@ -20,9 +20,11 @@ import { loadEnv } from './env.ts'
 import { createMcpRouter } from './mcp.ts'
 import { createConsentRouter } from './oauth/consent.ts'
 import { createOAuthProvider } from './oauth/provider.ts'
+import { backfillSessions } from './queries.ts'
 import { createAttemptsRouter } from './routes/attempts.ts'
 import { createPiecesRouter } from './routes/pieces.ts'
 import { createSectionsRouter } from './routes/sections.ts'
+import { createSessionsRouter } from './routes/sessions.ts'
 import { mountSpaFallback, mountStaticAssets } from './static.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -30,6 +32,11 @@ const distDir = join(here, '..', 'dist')
 
 const env = loadEnv()
 const db = openDb(env.dbPath)
+// The data-level expand step for the attempts.session_id column added in
+// db.ts's ADDED_COLUMNS — see backfillSessions's own doc comment for why
+// this is safe to run on every boot rather than gated behind a
+// once-ever flag.
+backfillSessions(db)
 const publicUrl = new URL(env.publicUrl)
 const secureCookies = publicUrl.protocol === 'https:'
 
@@ -125,6 +132,7 @@ app.use('/api', express.json({ limit: '15mb' }), requireSession(db))
 app.use(createPiecesRouter(db))
 app.use(createSectionsRouter(db))
 app.use(createAttemptsRouter(db))
+app.use(createSessionsRouter(db))
 
 // ---- MCP: OAuth 2.1 authorization server + the /mcp endpoint itself ----
 //

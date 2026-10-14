@@ -15,7 +15,7 @@
     "server:dev": "node --watch server/index.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
     "idb": "^8.0.3",

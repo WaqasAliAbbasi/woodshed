@@ -160,6 +160,10 @@ function AppFooter() {
   return (
     <footer className="app-footer">
       <McpInfoLink />
+      {/* Server-rendered page (server/routes/export.ts), so a plain link, not client routing. */}
+      <a className="link-back" href="/export-key">
+        Export key
+      </a>
     </footer>
   )
 }

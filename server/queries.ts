@@ -425,6 +425,24 @@ export function listSessions(
   return hydrateSessions(db, userId, rows)
 }
 
+/** What the export endpoint serves: when, how long, which pieces (by title). Newest first. */
+export function exportSessions(db: DatabaseSync, userId: string, since?: number) {
+  const sessions = listSessions(db, userId, { since })
+  const titles = new Map(
+    (db.prepare('SELECT id, title FROM pieces WHERE user_id = ?').all(userId) as unknown as { id: string; title: string }[]).map((p) => [p.id, p.title]),
+  )
+  return sessions.map((s) => ({
+    id: s.id,
+    startedAt: s.startedAt,
+    endedAt: s.endedAt,
+    source: s.source,
+    label: s.label,
+    attemptCount: s.attemptCount,
+    scoredMs: s.scoredMs,
+    pieces: s.pieceIds.flatMap((id) => titles.get(id) ?? []),
+  }))
+}
+
 export function getSession(db: DatabaseSync, userId: string, id: string): PracticeSession | undefined {
   const row = db.prepare('SELECT * FROM practice_sessions WHERE id = ? AND user_id = ?').get(id, userId) as unknown as
     | PracticeSessionRow

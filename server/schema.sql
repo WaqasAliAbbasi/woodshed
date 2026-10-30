@@ -181,3 +181,13 @@ CREATE TABLE IF NOT EXISTS oauth_tokens (
   revoked INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_oauth_tokens_refresh_token ON oauth_tokens(refresh_token);
+
+-- Read-only export keys: a bearer token another of the user's own apps (life) presents to
+-- GET /api/export/sessions, in place of the login cookie. Only the SHA-256 of the key is stored (the key is shown
+-- once, by scripts/createExportKey.ts), and it is scoped to one user, so it can read nothing but that user's sessions.
+CREATE TABLE IF NOT EXISTS export_keys (
+  key_hash TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);

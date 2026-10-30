@@ -21,6 +21,7 @@ import { createMcpRouter } from './mcp.ts'
 import { createConsentRouter } from './oauth/consent.ts'
 import { createOAuthProvider } from './oauth/provider.ts'
 import { backfillSessions } from './queries.ts'
+import { createExportRouter } from './routes/export.ts'
 import { createAttemptsRouter } from './routes/attempts.ts'
 import { createPiecesRouter } from './routes/pieces.ts'
 import { createSectionsRouter } from './routes/sections.ts'
@@ -128,6 +129,8 @@ app.post('/api/logout', (req, res) => {
 
 // ---- App API — every /api/* route below this line requires a session ----
 
+// Read-only export for the user's other apps: its own key auth, so it comes before the cookie guard.
+app.use(createExportRouter(db))
 app.use('/api', express.json({ limit: '15mb' }), requireSession(db))
 app.use(createPiecesRouter(db))
 app.use(createSectionsRouter(db))

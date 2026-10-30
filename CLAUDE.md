@@ -122,6 +122,7 @@ type-stripping — no build step, no `tsx`, see `index.ts`'s own comment):
   `mcp.ts` (MCP tools) call into. Every function takes `userId` and every
   query is scoped by it; there's deliberately no "fetch this row by id,
   unscoped" function anywhere in the file.
+- `auth/exportKey.ts` + `routes/export.ts` — a logged-in `/export-key` page that mints a key (shown once), and a read-only `GET /api/export/sessions?since=` for the user's own life app, behind a per-user bearer export key (only its SHA-256 is stored; mint one with `scripts/createExportKey.ts`). It serves when/how long/piece titles, never notes or attempts.
 - `auth/session.ts` — username+password login (`users` table). Signup is
   open (`POST /api/signup`, rate-limited — see index.ts); `createUser`/
   `validateNewUser` here are the shared logic both that route and

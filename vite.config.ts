@@ -31,6 +31,7 @@ export default defineConfig({
       '/signup': backendProxy,
       '/oauth': backendProxy,
       '/mcp': backendProxy,
+      '/export-key': backendProxy,
       '/.well-known': backendProxy,
     },
   },

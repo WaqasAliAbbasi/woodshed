@@ -4,6 +4,8 @@ import { timingQuality } from '../../lib/coach/suggestNextStep'
 import type { Attempt } from '../../lib/db/db'
 import { resolvePathSection } from '../../lib/db/pathRepo'
 import { advanceCursorToMeasure, getStaffCount } from '../../lib/musicxml/buildExpectedTimeline'
+import { rangeKey } from '../../lib/musicxml/drawRange'
+import type { MeasureRange } from '../../lib/musicxml/types'
 import { buildDailyPlan } from '../../lib/path/buildDailyPlan'
 import { describeItem, type PathItem, type PiecePath } from '../../lib/path/nextStep'
 import { nudgeFor, type Nudge } from '../../lib/path/nudgeFor'
@@ -13,13 +15,14 @@ import { tenPercentSlower } from '../../lib/path/tempo'
 import type { PathAttempt } from '../../lib/path/types'
 import { navigate } from '../../lib/router'
 import { SESSION_GAP_MS } from '../../lib/sessions'
+import { AppLink, PracticeShell } from '../AppShell/AppShell'
 import { InputSourceSelector } from '../InputSourceSelector/InputSourceSelector'
 import type { UseMidiInputResult } from '../InputSourceSelector/useMidiInput'
 import { usePracticeEngine } from '../PracticeSession/usePracticeEngine'
 import { ScoreViewer, type MeasureProgressStatus } from '../ScoreViewer/ScoreViewer'
 import { finishHref, freePracticeHref, overviewHref, parseItemParam } from './links'
 import { markStepDone, getBudget } from './planProgress'
-import { WholePieceLock } from './PieceOverview'
+import { ArrowIcon, ChunkStrip, WholePieceLock } from './PieceOverview'
 import { usePiecePath } from './usePiecePath'
 import './path.css'
 
@@ -79,32 +82,71 @@ function passes(settings: StepSettings, attempt: PathAttempt): boolean {
   return settings.mode === 'notes' ? !attempt.aborted && isNotesPass(attempt.aggregate) : isReadyAttempt(attempt)
 }
 
-/** "Notes · both hands ✓ → Metronome → Build tempo → Ready" for a chunk; a short trail for joins. */
+/** "Notes · both hands ✓ › Metronome › Build tempo › Ready" for a chunk (`Rung` artboard). */
 function Ladder({ path, request }: { path: PiecePath; request: StepRequest }) {
   if (request.kind === 'chunk' || request.kind === 'notes-hand' || request.kind === 'drill') {
     const p = path.chunks[request.idx].progress
     const nowRung = request.kind === 'chunk' ? request.rung : request.kind === 'notes-hand' ? 'hand' : 'drill'
     const rungs = [
-      { label: p.rung1.passed ? 'Notes · one hand ✓' : 'Notes · one hand', state: nowRung === 'hand' ? 'now' : p.rung1.passed ? 'done' : 'skip' },
+      {
+        label: nowRung === 'hand' ? 'Notes · one hand' : p.rung1.passed ? 'Notes · one hand ✓' : 'Notes · one hand · skipped',
+        state: nowRung === 'hand' ? 'now' : p.rung1.passed ? 'done' : 'skip',
+      },
       { label: p.rung2.passed ? 'Notes · both hands ✓' : 'Notes · both hands', state: nowRung === 'notes' ? 'now' : p.rung2.passed ? 'done' : 'todo' },
       { label: p.rung3.passed ? 'Metronome ✓' : 'Metronome', state: nowRung === 'metronome' ? 'now' : p.rung3.passed ? 'done' : 'todo' },
       {
         label: p.rung4.skipped ? 'Build tempo · not needed' : p.rung4.passed ? 'Build tempo ✓' : 'Build tempo',
         state: nowRung === 'tempo' ? 'now' : p.rung4.skipped ? 'skip' : p.rung4.passed ? 'done' : 'todo',
       },
-      { label: 'Ready', state: p.ready ? 'done' : 'todo' },
+      { label: p.ready ? 'Ready ✓' : 'Ready', state: p.ready ? 'done' : 'todo' },
     ]
     return (
       <ol className="p-ladder" aria-label="Rungs for this chunk">
-        {rungs.map((r) => (
-          <li key={r.label} className={r.state === 'done' ? 'p-rung-done' : r.state === 'now' ? 'p-rung-now' : r.state === 'skip' ? 'p-rung-skip' : undefined}>
-            {r.label}
+        {rungs.map((r, i) => (
+          <li key={r.label}>
+            <span className={`p-rung p-rung-${r.state}`} aria-current={r.state === 'now' ? 'step' : undefined}>
+              {r.label}
+            </span>
+            {i < rungs.length - 1 && <Chevron />}
           </li>
         ))}
       </ol>
     )
   }
   return null
+}
+
+function Chevron() {
+  return (
+    <svg className="p-ladder-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  )
+}
+
+function PlayIcon({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M7 4.5v15l13-7.5z" />
+    </svg>
+  )
+}
+
+function CheckMark({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  )
+}
+
+function SpeakerIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 9.5v5h4l5 4v-13l-5 4z" />
+      <path d="M16.5 8.5a5 5 0 0 1 0 7" />
+    </svg>
+  )
 }
 
 function stepTitle(path: PiecePath, request: StepRequest): string {
@@ -138,14 +180,28 @@ function resultLine(settings: StepSettings, a: Attempt): string {
  */
 export function PathStep({ pieceId, midi, search }: { pieceId: string; midi: UseMidiInputResult; search: URLSearchParams }) {
   const loaded = usePiecePath(pieceId)
-  if (loaded.error) return <div className="path"><p className="p-error">{loaded.error}</p></div>
-  if (!loaded.data || !loaded.derived) return <div className="path"><p className="p-muted">Loading the piece…</p></div>
+  if (loaded.error || !loaded.data || !loaded.derived) {
+    return (
+      <PracticeShell where={null} right={null}>
+        <div className="path">{loaded.error ? <p className="p-error">{loaded.error}</p> : <p className="p-muted">Loading the piece…</p>}</div>
+      </PracticeShell>
+    )
+  }
   return <StepScreen key={loaded.data.piece.id} data={loaded.data} derived={loaded.derived} now={loaded.now} addAttempt={loaded.addAttempt} midi={midi} search={search} />
 }
 
 type Loaded = ReturnType<typeof usePiecePath>
 type Data = NonNullable<Loaded['data']>
 type Derived = NonNullable<Loaded['derived']>
+
+/** What the screen is showing: the step itself, a try in progress, or one of the three after-a-try states. */
+type View = 'ready' | 'live' | 'result' | 'nudge' | 'milestone'
+
+/** The join a try just passed, if it passed one — measured against the path just before the try. */
+function newlyJoinedK(path: PiecePath, before: PiecePath | undefined, played: StepSettings | undefined): number | undefined {
+  if (played?.rung !== 'join' || !before) return undefined
+  return path.joins.find((j) => j.passed && !before.joins.find((b) => b.k === j.k)?.passed)?.k
+}
 
 function StepScreen({
   data,
@@ -178,6 +234,12 @@ function StepScreen({
   const [before, setBefore] = useState<PiecePath | undefined>(undefined)
   // The settings the latest try was played with.
   const [played, setPlayed] = useState<StepSettings | undefined>(undefined)
+  // Which measures the score currently draws (see ScoreViewer's `focus`). A
+  // try can only start once its own range is drawn: the engine builds its
+  // timeline from the drawn score.
+  const [drawnKey, setDrawnKey] = useState<string | undefined>(undefined)
+  // A Play pressed while the score still showed another range — it starts as soon as that range is drawn.
+  const [pendingPlay, setPendingPlay] = useState<StepSettings | undefined>(undefined)
 
   const request = override ?? baseRequest(path, review)
   const sectionRung = useMemo(() => new Map(data.sections.map((s) => [s.id, { chunkId: s.chunkId, rung: s.rung }])), [data.sections])
@@ -227,46 +289,92 @@ function StepScreen({
   const engine = usePracticeEngine({ osmd, pieceId: piece.id, midi, resolveSectionId, onAttemptRecorded })
   const { state } = engine
   const idle = state.status === 'PieceLoaded' || state.status === 'SectionConfigured'
+  const complete = state.status === 'AttemptComplete'
+
+  const view: View =
+    engine.isLive || state.status === 'AttemptScoring'
+      ? 'live'
+      : complete && played
+        ? newlyJoinedK(path, before, played) !== undefined
+          ? 'milestone'
+          : nudge
+            ? 'nudge'
+            : 'result'
+        : 'ready'
 
   // The attempt scrolled the page to follow the cursor; bring the result
   // (and the next decision) back into view.
-  const complete = state.status === 'AttemptComplete'
   useEffect(() => {
     if (complete) window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [complete])
 
-  // While idle, park the cursor where the next try starts. No scroll: the
-  // decision (tempo, Play) sits above the score and must stay in view.
+  // While idle, park the cursor where the next try starts (again after each
+  // re-draw). No scroll: the decision (tempo, Play) must stay in view.
   const startMeasure = settings?.range.startMeasure
   useEffect(() => {
     if (!osmd || !idle || startMeasure === undefined) return
     advanceCursorToMeasure(osmd, startMeasure)
     osmd.cursor.show()
-  }, [osmd, idle, startMeasure])
+  }, [osmd, idle, startMeasure, drawnKey])
 
-  const play = (s: StepSettings) => {
+  const begin = (s: StepSettings) => {
     setPlayed(s)
     latest.current.played = s
     setBefore(path)
     setNudge(undefined)
     void engine.begin({ range: s.range, tempoBpm: s.tempo.bpm, handFilter: s.handFilter, mode: s.mode })
   }
+  const beginRef = useRef(begin)
+  useLayoutEffect(() => {
+    beginRef.current = begin
+  })
+
+  const play = (s: StepSettings) => {
+    if (rangeKey(s.range) === drawnKey) begin(s)
+    else setPendingPlay(s)
+  }
+
+  useEffect(() => {
+    if (!pendingPlay || rangeKey(pendingPlay.range) !== drawnKey) return
+    // oxlint-disable-next-line react/set-state-in-effect -- the score (an external system) just finished drawing the range this Play was waiting for.
+    setPendingPlay(undefined)
+    beginRef.current(pendingPlay)
+  }, [pendingPlay, drawnKey])
 
   const backToPlan = () => {
     if (planStepKey && triesThisVisit > 0) markStepDone(planStepKey)
     navigate('/')
   }
 
-  const showing = state.status === 'AttemptComplete' ? played : settings
+  // The score shows the range being played, the one just played (with its
+  // notes coloured) after a try, or the next one while a Play waits for it.
+  const showing = complete ? played : settings
+  const focus = pendingPlay?.range ?? showing?.range
+
   const body = (() => {
     if (!settings || !request) return <p>Nothing to play here yet.</p>
-    if (!osmd) return <p className="p-muted">Loading the score…</p>
-    if (engine.isLive || state.status === 'AttemptScoring') return <LiveCard engine={engine} played={played} countAloud={countAloud} />
-    if (state.status === 'AttemptComplete' && played) {
+    if (view === 'live') return <LiveRow engine={engine} played={played} countAloud={countAloud} />
+    if (view === 'milestone') {
       return (
-        <ResultView
-          {...{ data, derived, settings, request, played, before, nudge, midi, review, isWin, play, backToPlan }}
-          onTakeNudge={(r, aloud) => {
+        <Milestone
+          path={path}
+          joinK={newlyJoinedK(path, before, played)!}
+          target={target}
+          pieceId={piece.id}
+          settings={settings}
+          midiConnected={midi.connected}
+          onContinue={() => play(settings)}
+          onPlan={backToPlan}
+        />
+      )
+    }
+    if (view === 'nudge' && nudge && played) {
+      return (
+        <NudgeView
+          nudge={nudge}
+          played={played}
+          request={request}
+          onTake={(r, aloud) => {
             setNudge(undefined)
             setCountAloud(aloud)
             if (r) setOverride(r)
@@ -274,6 +382,10 @@ function StepScreen({
         />
       )
     }
+    if (view === 'result' && played) {
+      return <ResultView {...{ data, derived, settings, played, midi, review, isWin, play, backToPlan }} />
+    }
+    if (!osmd) return <p className="p-muted">Loading the score…</p>
     return (
       <ReadyView
         {...{ data, path, request, settings, midi, engine, override, countAloud, play }}
@@ -284,21 +396,37 @@ function StepScreen({
   })()
 
   return (
-    <Frame data={data} derived={derived} now={now} settings={showing} request={request} midi={midi} onOsmd={setOsmd} frozen={!idle} editable={idle}>
+    <Frame
+      data={data}
+      derived={derived}
+      now={now}
+      view={view}
+      settings={showing}
+      request={request}
+      midi={midi}
+      focus={focus}
+      onOsmd={setOsmd}
+      onDrawn={setDrawnKey}
+      frozen={!idle && !pendingPlay}
+      editable={idle}
+    >
       {body}
     </Frame>
   )
 }
 
-/** Shared chrome: the top bar, the ladder, the decision area, and the score underneath. */
+/** Shared chrome: the slim practice bar, the rung pills, the chunk's score, then the decision for this view. */
 function Frame({
   data,
   derived,
   now,
+  view,
   settings,
   request,
   midi,
+  focus,
   onOsmd,
+  onDrawn,
   frozen,
   editable,
   children,
@@ -306,10 +434,13 @@ function Frame({
   data: Data
   derived: Derived
   now: number
+  view: View
   settings: StepSettings | undefined
   request: StepRequest | undefined
   midi: UseMidiInputResult
+  focus: MeasureRange | undefined
   onOsmd: (osmd: OpenSheetMusicDisplay | undefined) => void
+  onDrawn: (focusKey: string | undefined) => void
   frozen: boolean
   editable: boolean
   children: React.ReactNode
@@ -326,48 +457,58 @@ function Frame({
     return map
   }, [path])
 
+  const where = (
+    <>
+      <AppLink href={overviewHref(piece.id)} className="shell-where-piece">
+        {piece.title}
+      </AppLink>
+      {request && settings && (
+        <>
+          {' · '}
+          <strong>{stepTitle(path, request)}</strong> · m. {settings.range.startMeasure}–{settings.range.endMeasure}
+        </>
+      )}
+    </>
+  )
+  const right = (
+    <>
+      <button type="button" className="shell-link" onClick={() => navigate(finishHref(plan))}>
+        Finish now
+      </button>
+      <AppLink href={freePracticeHref(piece.id)} className="shell-link">
+        Free practice
+      </AppLink>
+      <InputSourceSelector midi={midi} />
+    </>
+  )
+
+  const scoreHidden = view === 'nudge' || view === 'milestone'
   return (
-    <div className="path">
-      <header className="p-topbar">
-        <button type="button" className="p-link" onClick={() => navigate('/')}>
-          ‹ Today's plan
-        </button>
-        <p className="p-muted">
-          <button type="button" className="p-link" style={{ fontSize: 18 }} onClick={() => navigate(overviewHref(piece.id))}>
-            {piece.title}
-          </button>
-          {request && settings && (
-            <>
-              {' · '}
-              <strong>{stepTitle(path, request)}</strong> · m. {settings.range.startMeasure}–{settings.range.endMeasure}
-            </>
-          )}
-        </p>
-        <span className="p-actions" style={{ gap: 16 }}>
-          <button type="button" className="p-link" onClick={() => navigate(finishHref(plan))}>
-            Finish now
-          </button>
-          <button type="button" className="p-link" onClick={() => navigate(freePracticeHref(piece.id))}>
-            Free practice
-          </button>
-          <InputSourceSelector midi={midi} />
-        </span>
-      </header>
-      {request && <Ladder path={path} request={request} />}
-      {children}
-      <div className="p-score">
-        <ScoreViewer
-          musicXml={piece.musicXml}
-          onReady={onOsmd}
-          range={settings?.range}
-          clickable={editable}
-          onMeasureClick={noop}
-          handFilter={settings?.handFilter ?? 'both'}
-          measureStatus={measureStatus}
-          frozen={frozen}
-        />
+    <PracticeShell where={where} right={right}>
+      <div className={`path p-practice p-practice-${view}`}>
+        {(view === 'ready' || view === 'live') && request && <Ladder path={path} request={request} />}
+        <section
+          className={`p-score${scoreHidden ? ' p-score-hidden' : ''}`}
+          aria-hidden={scoreHidden || undefined}
+          aria-label={focus ? `Measures ${focus.startMeasure} to ${focus.endMeasure}` : 'Score'}
+        >
+          {view === 'result' && <p className="p-eyebrow">That try, note by note</p>}
+          <ScoreViewer
+            musicXml={piece.musicXml}
+            onReady={onOsmd}
+            range={settings?.range}
+            clickable={editable}
+            onMeasureClick={noop}
+            handFilter={settings?.handFilter ?? 'both'}
+            measureStatus={measureStatus}
+            frozen={frozen}
+            focus={focus}
+            onDrawn={onDrawn}
+          />
+        </section>
+        {children}
       </div>
-    </div>
+    </PracticeShell>
   )
 }
 
@@ -375,88 +516,97 @@ function noop() {}
 
 type Engine = ReturnType<typeof usePracticeEngine>
 
-function LiveCard({ engine, played, countAloud }: { engine: Engine; played: StepSettings | undefined; countAloud: boolean }) {
+/** During a try: the same row as the tempo panel and Play, with the beat and Stop in their places. */
+function LiveRow({ engine, played, countAloud }: { engine: Engine; played: StepSettings | undefined; countAloud: boolean }) {
   const { state } = engine
   return (
-    <section className="p-card" style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'center', justifyContent: 'space-between' }}>
-      <div>
-        <p className="p-eyebrow">{state.status === 'CountingIn' ? 'Count-in' : state.status === 'AttemptScoring' ? 'Scoring' : 'Playing'}</p>
-        <p style={{ fontSize: 28, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-          {played?.mode === 'notes' ? 'Take your time' : `${played?.tempo.bpm} bpm`}
-          {countAloud && played?.mode === 'metronome' ? ' · count aloud' : ''}
-        </p>
+    <div className="p-try-row">
+      <section className="p-card p-tempo-panel" aria-live="polite">
+        <div>
+          <p className="p-eyebrow">{state.status === 'CountingIn' ? 'Count-in' : state.status === 'AttemptScoring' ? 'Scoring' : 'Playing'}</p>
+          {played?.mode === 'notes' ? (
+            <p className="p-tempo-big p-tempo-words">Take your time</p>
+          ) : (
+            <p className="p-tempo-big">
+              {played?.tempo.bpm}
+              <small> bpm</small>
+            </p>
+          )}
+          {countAloud && played?.mode === 'metronome' && <p className="p-muted p-small">Count the beats out loud</p>}
+        </div>
         {played?.mode === 'metronome' && (
-          <div className="p-cells" style={{ width: 160, marginTop: 10 }} aria-hidden="true">
+          <div className="p-cells p-beats" aria-hidden="true">
             {Array.from({ length: engine.beatsPerMeasure }, (_, i) => (
-              <span key={i} className={engine.isLive && i === engine.currentBeat ? 'p-cell-ready' : undefined} style={{ height: 14 }} />
+              <span key={i} className={engine.isLive && i === engine.currentBeat ? 'p-cell-now-beat' : undefined} />
             ))}
           </div>
         )}
+      </section>
+      <div className="p-play">
+        {played?.runThrough ? (
+          <p className="p-muted p-small" style={{ textAlign: 'center' }}>
+            Run-through: play to the end, whatever happens.
+          </p>
+        ) : (
+          state.status !== 'AttemptScoring' && (
+            <button type="button" className="p-btn p-btn-stop" onClick={() => engine.dispatch({ type: 'stop' })}>
+              Stop
+            </button>
+          )
+        )}
       </div>
-      {played?.runThrough ? (
-        <p className="p-muted p-small">Run-through: play to the end, whatever happens.</p>
-      ) : (
-        state.status !== 'AttemptScoring' && (
-          <button type="button" className="p-btn" onClick={() => engine.dispatch({ type: 'stop' })}>
-            Stop
-          </button>
-        )
-      )}
-    </section>
+    </div>
   )
 }
 
+/** The result of a try, as its own state (`AfterAttempt` artboard): how it went, then the one next decision. */
 function ResultView({
   data,
   derived,
   settings,
-  request,
   played,
-  before,
-  nudge,
   midi,
   review,
   isWin,
   play,
   backToPlan,
-  onTakeNudge,
 }: {
   data: Data
   derived: Derived
   settings: StepSettings
-  request: StepRequest
   played: StepSettings
-  before: PiecePath | undefined
-  nudge: Nudge | undefined
   midi: UseMidiInputResult
   review: PathItem | 'whole' | undefined
   isWin: boolean
   play: (s: StepSettings) => void
   backToPlan: () => void
-  onTakeNudge: (r: StepRequest | undefined, countAloud: boolean) => void
 }) {
-  const { path, target } = derived
+  const { target } = derived
   const latestAttempt = [...data.attempts].sort((a, b) => b.timestamp - a.timestamp)[0]
   const passed = latestAttempt ? passes(played, latestAttempt) : false
   const matching = new Set(data.sections.filter(sameSection(played)).map((s) => s.id))
   const rungAttempts = data.attempts.filter((a) => matching.has(a.sectionId)).sort((a, b) => a.timestamp - b.timestamp)
 
-  // A join (or the whole piece) passed with this try: the milestone card, not a toast.
-  const newlyJoined = played.rung === 'join' ? path.joins.find((j) => j.passed && before && !before.joins.find((b) => b.k === j.k)?.passed) : undefined
-  if (newlyJoined) return <Milestone path={path} joinK={newlyJoined.k} target={target} pieceId={data.piece.id} settings={settings} onContinue={() => play(settings)} onPlan={backToPlan} />
-
-  if (nudge) return <NudgeCard nudge={nudge} played={played} request={request} onTake={onTakeNudge} />
-
   if (review || isWin) {
     return (
-      <ResultHeader played={played} attempt={latestAttempt} passed={passed}>
-        <button type="button" className="p-btn p-btn-primary" onClick={() => navigate(isWin ? '/done' : '/')}>
-          {isWin ? 'Finish' : 'Back to plan'}
-        </button>
-        <button type="button" className="p-btn" disabled={!midi.connected} onClick={() => play(played)}>
-          Once more
-        </button>
-      </ResultHeader>
+      <>
+        <ResultHeader played={played} attempt={latestAttempt} passed={passed} />
+        <section className="p-card p-card-accent p-next" aria-label="What's next">
+          <div className="p-next-text">
+            <p className="p-eyebrow p-eyebrow-accent">{isWin ? 'Today' : 'Next'}</p>
+            <p className="p-next-title">{isWin ? 'Ending on that' : 'Back to the plan'}</p>
+          </div>
+          <button type="button" className="p-btn p-btn-primary p-btn-next" onClick={() => navigate(isWin ? '/done' : '/')}>
+            {isWin ? 'Finish' : 'Back to plan'}
+          </button>
+        </section>
+        <div className="p-after-row">
+          <span />
+          <button type="button" className="p-btn" disabled={!midi.connected} onClick={() => play(played)}>
+            Once more
+          </button>
+        </div>
+      </>
     )
   }
 
@@ -472,28 +622,34 @@ function ResultView({
   return (
     <>
       <ResultHeader played={played} attempt={latestAttempt} passed={passed} />
-      <section className="p-card p-card-accent" aria-label="What's next" style={{ display: 'flex', flexWrap: 'wrap', gap: '20px 36px', alignItems: 'center' }}>
-        <div style={{ flex: '999 1 360px', minWidth: 0 }}>
-          <p className="p-eyebrow">{settings.endToday ? 'Today' : 'Next try'}</p>
-          <p style={{ fontFamily: 'var(--font-display)', fontSize: 36, lineHeight: 1.15, fontWeight: 600 }}>{headline}</p>
-          <p className="p-muted" style={{ marginTop: 6 }}>
+      <section className="p-card p-card-accent p-next" aria-label="What's next">
+        <div className="p-next-text">
+          <p className="p-eyebrow p-eyebrow-accent">{settings.endToday ? 'Today' : 'Next try'}</p>
+          <p className="p-next-title">{headline}</p>
+          <p className="p-muted p-small">
             {settings.endToday
               ? "It's solid there. Three misses in a row today: come back to the faster tempo tomorrow."
               : `${settings.tempo.reason}. ${settings.goal}.`}
           </p>
         </div>
         {settings.endToday ? (
-          <button type="button" className="p-btn p-btn-primary" style={{ flex: '1 1 240px' }} onClick={backToPlan}>
+          <button type="button" className="p-btn p-btn-primary p-btn-next" onClick={backToPlan}>
             Back to plan
           </button>
         ) : (
-          <button type="button" className="p-btn p-btn-primary" style={{ flex: '1 1 240px' }} disabled={!midi.connected} onClick={() => play(settings)}>
-            ▶ {settings.mode === 'notes' ? 'Play' : `Play at ${settings.tempo.bpm}`}
+          <button type="button" className="p-btn p-btn-primary p-btn-next" disabled={!midi.connected} onClick={() => play(settings)}>
+            <PlayIcon size={26} />
+            {settings.mode === 'notes' ? 'Play' : `Play at ${settings.tempo.bpm}`}
           </button>
         )}
       </section>
-      <div className="p-actions" style={{ justifyContent: 'space-between' }}>
-        <Tries settings={played} attempts={rungAttempts} />
+      <div className="p-after-row">
+        <div>
+          <p className="p-muted p-small" style={{ marginBottom: 8 }}>
+            Tries at this rung
+          </p>
+          <Tries settings={played} attempts={rungAttempts} />
+        </div>
         <div className="p-actions">
           {nextIsNew && (
             <button type="button" className="p-btn" disabled={!midi.connected} onClick={() => play(played)}>
@@ -511,6 +667,7 @@ function ResultView({
   )
 }
 
+/** Before a try (`Rung` artboard): the tempo panel and Play side by side, under the score. */
 function ReadyView({
   data,
   path,
@@ -543,9 +700,9 @@ function ReadyView({
   return (
     <>
       {offer && !override && (
-        <section className="p-card p-card-accent" style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
+        <section className="p-card p-card-accent p-offer">
           <div style={{ flex: '999 1 320px' }}>
-            <p className="p-eyebrow">Three tries without a pass today</p>
+            <p className="p-eyebrow p-eyebrow-accent">Three tries without a pass today</p>
             <p>{offer.why}</p>
           </div>
           <button type="button" className="p-btn" style={{ flex: '1 1 220px' }} onClick={() => onOverride(offer.request)}>
@@ -553,8 +710,8 @@ function ReadyView({
           </button>
         </section>
       )}
-      <div className="p-split" style={{ alignItems: 'stretch' }}>
-        <section className="p-main p-card" aria-label="This try" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: '20px 40px', alignItems: 'center' }}>
+      <div className="p-try-row">
+        <section className="p-card p-tempo-panel" aria-label="Tempo for this try">
           <div>
             <p className="p-eyebrow">This try</p>
             {settings.mode === 'metronome' ? (
@@ -563,15 +720,13 @@ function ReadyView({
                 <small> bpm</small>
               </p>
             ) : (
-              <p className="p-tempo-big" style={{ fontSize: 56 }}>
-                No click
-              </p>
+              <p className="p-tempo-big p-tempo-words">No click</p>
             )}
             <p className="p-muted p-small" style={{ marginTop: 6 }}>
-              {settings.tempo.reason}
+              {settings.mode === 'metronome' ? settings.tempo.reason : 'Take your time'}
             </p>
           </div>
-          <div style={{ flex: '1 1 240px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="p-tempo-goal">
             <p>
               <strong>Goal:</strong> {settings.goal}
             </p>
@@ -580,9 +735,10 @@ function ReadyView({
             <Tries settings={settings} attempts={rungAttempts} />
           </div>
         </section>
-        <div className="p-side" style={{ justifyContent: 'center' }}>
+        <div className="p-play">
           <button type="button" className="p-btn p-btn-primary p-btn-huge" disabled={!midi.connected} onClick={() => play(settings)}>
-            ▶ Play
+            <PlayIcon />
+            Play
           </button>
           <p className="p-muted p-small" style={{ textAlign: 'center' }}>
             {!midi.connected
@@ -593,27 +749,28 @@ function ReadyView({
                   ? 'One bar count-in · stop any time'
                   : 'Starts on your first note · stop any time'}
           </p>
-          <div className="p-actions">
+          <div className="p-play-secondary">
             {engine.isPlayingBack ? (
-              <button type="button" className="p-btn" onClick={engine.stopPlayback}>
+              <button type="button" className="p-btn p-btn-small" onClick={engine.stopPlayback}>
                 Stop listening
               </button>
             ) : (
               <button
                 type="button"
-                className="p-btn"
+                className="p-btn p-btn-small"
                 onClick={() => engine.playRange({ range: settings.range, tempoBpm: settings.tempo.bpm, handFilter: settings.handFilter, mode: settings.mode })}
               >
-                🔊 Hear it{settings.mode === 'metronome' ? ` at ${settings.tempo.bpm}` : ''}
+                <SpeakerIcon />
+                Hear it{settings.mode === 'metronome' ? ` at ${settings.tempo.bpm}` : ''}
               </button>
             )}
             {request.kind === 'chunk' && request.rung === 'notes' && twoStaves && (
-              <button type="button" className="p-btn" onClick={() => onOverride({ kind: 'notes-hand', idx: request.idx, hand: weakerHand(rungAttempts) })}>
+              <button type="button" className="p-btn p-btn-small" onClick={() => onOverride({ kind: 'notes-hand', idx: request.idx, hand: weakerHand(rungAttempts) })}>
                 One hand first
               </button>
             )}
             {override && (
-              <button type="button" className="p-btn" onClick={() => onOverride(undefined)}>
+              <button type="button" className="p-btn p-btn-small" onClick={() => onOverride(undefined)}>
                 {override.kind === 'drill' || override.kind === 'notes-hand' ? 'Back to the whole chunk' : 'Back to the usual tempo'}
               </button>
             )}
@@ -669,7 +826,7 @@ function Tries({ settings, attempts }: { settings: StepSettings; attempts: PathA
   )
 }
 
-function ResultHeader({ played, attempt, passed, children }: { played: StepSettings; attempt: Attempt | undefined; passed: boolean; children?: React.ReactNode }) {
+function ResultHeader({ played, attempt, passed }: { played: StepSettings; attempt: Attempt | undefined; passed: boolean }) {
   const headline = attempt?.aborted
     ? 'Stopped early'
     : passed
@@ -682,18 +839,18 @@ function ResultHeader({ played, attempt, passed, children }: { played: StepSetti
   return (
     <section aria-label="Result" className="p-result">
       <span className={`p-result-mark${passed ? '' : ' p-result-mark-miss'}`} aria-hidden="true">
-        {passed ? '✓' : '·'}
+        {passed ? <CheckMark size={52} /> : <span className="p-result-dot" />}
       </span>
-      <div style={{ flex: '1 1 320px', minWidth: 0 }}>
-        <h1 className="p-h1">{headline}</h1>
-        {attempt && <p className="p-muted" style={{ marginTop: 8, fontSize: 22 }}>{resultLine(played, attempt)}</p>}
+      <div className="p-result-text">
+        <h1 className="p-result-title">{headline}</h1>
+        {attempt && <p className="p-muted p-result-detail">{resultLine(played, attempt)}</p>}
       </div>
-      {children && <div className="p-actions" style={{ flex: '1 1 260px' }}>{children}</div>}
     </section>
   )
 }
 
-function NudgeCard({ nudge, played, request, onTake }: { nudge: Nudge; played: StepSettings; request: StepRequest; onTake: (r: StepRequest | undefined, countAloud: boolean) => void }) {
+/** A guardrail as one choice (`Nudge` artboard) — never a page of stats. */
+function NudgeView({ nudge, played, request, onTake }: { nudge: Nudge; played: StepSettings; request: StepRequest; onTake: (r: StepRequest | undefined, countAloud: boolean) => void }) {
   if (nudge.kind === 'quick-stops') {
     const idx = chunkIdxOf(request)
     const shorter: StepRequest = { kind: 'drill', idx, range: nudge.shorter, mode: played.mode, handFilter: played.handFilter, tempoBpm: played.tempo.bpm }
@@ -704,11 +861,11 @@ function NudgeCard({ nudge, played, request, onTake }: { nudge: Nudge; played: S
           ? { ...request, slowerBpm: nudge.slowerBpm }
           : { kind: 'drill', idx, range: played.range, mode: played.mode, handFilter: played.handFilter, tempoBpm: nudge.slowerBpm }
     return (
-      <section className="path" style={{ gap: 24, paddingBottom: 0 }}>
+      <div className="p-nudge">
         <div>
           <p className="p-eyebrow">Two quick stops in a row</p>
           <h1 className="p-h1">Let's make this smaller</h1>
-          <p className="p-muted" style={{ marginTop: 10, maxWidth: 760, fontSize: 22 }}>
+          <p className="p-muted p-lede">
             Stopping within a few seconds usually means it's a bit too long or too fast right now. Accurate tries teach more than many tries.
           </p>
         </div>
@@ -718,29 +875,29 @@ function NudgeCard({ nudge, played, request, onTake }: { nudge: Nudge; played: S
             <span className="p-choice-title">
               Measures {nudge.shorter.startMeasure}–{nudge.shorter.endMeasure} only
             </span>
-            <span className="p-muted">Back to the whole once this is clean.</span>
+            <span className="p-muted p-small">Back to the whole once this is clean.</span>
           </button>
           {slower && (
             <button type="button" className="p-choice" onClick={() => onTake(slower, false)}>
               <span className="p-choice-kind">Slower</span>
               <span className="p-choice-title">{nudge.slowerBpm} bpm</span>
-              <span className="p-muted">10% under this try. Same passage.</span>
+              <span className="p-muted p-small">10% under this try. Same passage.</span>
             </button>
           )}
         </div>
         <button type="button" className="p-link" style={{ alignSelf: 'flex-start' }} onClick={() => onTake(undefined, false)}>
           Keep going as it is
         </button>
-      </section>
+      </div>
     )
   }
   const drift = nudge.drift ? `, mostly ${nudge.drift}` : ''
   return (
-    <section className="path" style={{ gap: 24, paddingBottom: 0 }}>
+    <div className="p-nudge">
       <div>
         <p className="p-eyebrow">Last 3 tries</p>
         <h1 className="p-h1">Right notes, timing drifting</h1>
-        <p className="p-muted" style={{ marginTop: 10, maxWidth: 760, fontSize: 22 }}>
+        <p className="p-muted p-lede">
           Pitch {Math.round(nudge.pitch * 100)}%, rhythm {Math.round(nudge.rhythm * 100)}%{drift}. Going slower won't fix this one: it's the counting, not the speed.
         </p>
       </div>
@@ -748,22 +905,24 @@ function NudgeCard({ nudge, played, request, onTake }: { nudge: Nudge; played: S
         <button type="button" className="p-choice" onClick={() => onTake(undefined, true)}>
           <span className="p-choice-kind">Try this</span>
           <span className="p-choice-title">Count aloud while you play</span>
-          <span className="p-muted">Same tempo. Say the beats out loud, one bar count-in.</span>
+          <span className="p-muted p-small">Same tempo. Say the beats out loud, one bar count-in.</span>
         </button>
       </div>
       <button type="button" className="p-link" style={{ alignSelf: 'flex-start' }} onClick={() => onTake(undefined, false)}>
         Keep going as it is
       </button>
-    </section>
+    </div>
   )
 }
 
+/** A passed join is a milestone (`JoinLock` artboard): the celebration, where it stands across the score, and what's next. */
 function Milestone({
   path,
   joinK,
   target,
   pieceId,
   settings,
+  midiConnected,
   onContinue,
   onPlan,
 }: {
@@ -772,6 +931,7 @@ function Milestone({
   target: number
   pieceId: string
   settings: StepSettings
+  midiConnected: boolean
   onContinue: () => void
   onPlan: () => void
 }) {
@@ -780,38 +940,37 @@ function Milestone({
   const share = (join.endMeasure - join.startMeasure + 1) / (path.chunks[n - 1].chunk.endMeasure - path.chunks[0].chunk.startMeasure + 1)
   return (
     <>
-      <section aria-label="Milestone" className="p-card p-banner-success" style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'center', padding: 28 }}>
-        <span className="p-result-mark" aria-hidden="true">
-          ✓
+      <section aria-label="Milestone" className="p-milestone">
+        <span className="p-result-mark p-milestone-mark" aria-hidden="true">
+          <CheckMark size={34} />
         </span>
-        <div style={{ flex: '1 1 360px' }}>
-          <h1 className="p-h1">{join.whole ? 'The whole piece, ready' : `Joined chunks 1–${joinK}`}</h1>
-          <p style={{ marginTop: 8, fontSize: 22 }}>
+        <div style={{ flex: '1 1 400px', minWidth: 0 }}>
+          <h1 className="p-milestone-title">{join.whole ? 'The whole piece, ready' : `Joined chunks 1–${joinK}`}</h1>
+          <p className="p-milestone-text">
             Measures {join.startMeasure}–{join.endMeasure} straight through at {target} bpm.
             {!join.whole && share > 0.5 ? " That's more than half the piece." : ''}
             {join.whole ? ' Take it to your teacher.' : ''}
           </p>
         </div>
       </section>
-      <div className="p-split" style={{ alignItems: 'stretch' }}>
+      <ChunkStrip path={path} status joinedThrough={join.endMeasure} />
+      <div className="p-split p-split-stretch">
         {path.next.kind !== 'complete' ? (
-          <section className="p-main p-card p-card-accent" aria-label="Next step">
-            <p className="p-eyebrow">Next</p>
-            <p style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 600 }}>{settings.label}</p>
-            <p className="p-muted">
-              Measures {settings.range.startMeasure}–{settings.range.endMeasure}. {settings.goal}.
-            </p>
-            <div className="p-actions">
-              <button type="button" className="p-btn p-btn-primary" onClick={onContinue}>
-                Continue →
-              </button>
-              <button type="button" className="p-btn" onClick={onPlan}>
-                Back to plan
-              </button>
+          <section className="p-main p-card p-card-accent p-next-card" aria-label="Next step">
+            <div>
+              <p className="p-eyebrow p-eyebrow-accent">Next</p>
+              <p className="p-next-title">{settings.label}</p>
+              <p className="p-muted p-small">
+                Measures {settings.range.startMeasure}–{settings.range.endMeasure}. {settings.goal}.
+              </p>
             </div>
+            <button type="button" className="p-btn p-btn-primary" disabled={!midiConnected} onClick={onContinue}>
+              Continue
+              <ArrowIcon />
+            </button>
           </section>
         ) : (
-          <section className="p-main">
+          <section className="p-main p-next-card">
             <button type="button" className="p-btn p-btn-primary" onClick={onPlan}>
               Back to plan
             </button>

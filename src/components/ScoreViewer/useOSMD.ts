@@ -1,6 +1,8 @@
 import type { OpenSheetMusicDisplay } from 'opensheetmusicdisplay'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { applyDrawRange, fitZoom, rangeKey } from '../../lib/musicxml/drawRange'
 import { loadScore } from '../../lib/musicxml/loadScore'
+import type { MeasureRange } from '../../lib/musicxml/types'
 import { getDefaultMusicColor, watchColorScheme } from '../../lib/theme'
 
 const ZOOM_STORAGE_KEY = 'woodshed:score-zoom'
@@ -32,6 +34,8 @@ export interface UseOSMDResult {
    * redo that work — depend on this in a `useEffect` to know when to.
    */
   renderVersion: number
+  /** The focus range the score currently shows (see `rangeKey`), undefined for the whole score — it lags `focus` while frozen. */
+  drawnFocusKey: string | undefined
 }
 
 /**
@@ -50,12 +54,18 @@ export interface UseOSMDResult {
  * too. Scoring itself never depended on the render either way — the matchers
  * work off MIDI, not the DOM.
  */
-export function useOSMD(musicXml: string, frozen: boolean): UseOSMDResult {
+/**
+ * `focus`, when set, draws only those measures, zoomed to fill the
+ * container's width (see drawRange.ts) — the stored zoom is ignored, and
+ * moving the focus re-renders (held off while frozen, like everything else).
+ */
+export function useOSMD(musicXml: string, frozen: boolean, focus?: MeasureRange): UseOSMDResult {
   const containerRef = useRef<HTMLDivElement>(null)
   const [osmd, setOsmd] = useState<OpenSheetMusicDisplay | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
   const [zoom, setZoomState] = useState(loadPersistedZoom)
   const [renderVersion, setRenderVersion] = useState(0)
+  const [drawnFocusKey, setDrawnFocusKey] = useState<string | undefined>(undefined)
   // Read through a ref (rather than closing over `zoom` directly) so the
   // mount effect below doesn't need `zoom` in its dependency array — it
   // should only ever run once per `musicXml`, not re-run (and reload the
@@ -66,6 +76,19 @@ export function useOSMD(musicXml: string, frozen: boolean): UseOSMDResult {
   }, [zoom])
   /** The zoom already baked into the current osmd's most recent render — lets the zoom-change effect skip re-rendering right after load, when it's already current. */
   const lastAppliedZoomRef = useRef<number | undefined>(undefined)
+  const focusRef = useRef(focus)
+  useEffect(() => {
+    focusRef.current = focus
+  })
+  /** The focus baked into the most recent render, as "start-end" — so a new range re-renders but the same one doesn't. */
+  const lastAppliedFocusRef = useRef<string | undefined>(undefined)
+  const focusKey = rangeKey(focus)
+  /** The zoom to render at: the stored one, or — when focused — whatever fills the width. */
+  const effectiveZoom = useCallback(() => {
+    const f = focusRef.current
+    const width = containerRef.current?.getBoundingClientRect().width ?? 0
+    return f ? fitZoom(f.endMeasure - f.startMeasure + 1, width) : zoomRef.current
+  }, [])
   /** Set when `frozen` swallowed a re-render, so the reason for it (a resize, a theme flip) isn't lost — one render catches all of them up once it lifts. */
   const pendingRenderRef = useRef(false)
 
@@ -76,10 +99,14 @@ export function useOSMD(musicXml: string, frozen: boolean): UseOSMDResult {
     if (!container) return
     container.innerHTML = ''
 
-    loadScore(container, musicXml, controller.signal, zoomRef.current)
+    const initialZoom = effectiveZoom()
+    const initialFocusKey = rangeKey(focusRef.current)
+    lastAppliedFocusRef.current = initialFocusKey
+    loadScore(container, musicXml, controller.signal, initialZoom, (loaded) => applyDrawRange(loaded, focusRef.current))
       .then(({ osmd: loaded }) => {
-        lastAppliedZoomRef.current = zoomRef.current
+        lastAppliedZoomRef.current = initialZoom
         setOsmd(loaded)
+        setDrawnFocusKey(initialFocusKey)
         setRenderVersion((v) => v + 1)
       })
       .catch((err: unknown) => {
@@ -93,7 +120,8 @@ export function useOSMD(musicXml: string, frozen: boolean): UseOSMDResult {
       // doc comment for why aborting alone isn't enough during the load.
       container.innerHTML = ''
     }
-  }, [musicXml])
+    // effectiveZoom is stable (it reads refs), so this still runs once per score.
+  }, [musicXml, effectiveZoom])
 
   // The single place a re-render actually happens — every trigger below goes
   // through it, so they all report the new renderVersion and all pick up the
@@ -101,18 +129,36 @@ export function useOSMD(musicXml: string, frozen: boolean): UseOSMDResult {
   // deferred while frozen).
   const render = useCallback(() => {
     if (!osmd) return
+    const f = focusRef.current
+    applyDrawRange(osmd, f)
+    lastAppliedFocusRef.current = rangeKey(f)
+    const nextZoom = effectiveZoom()
     // oxlint-disable-next-line react/immutability -- osmd is a mutable imperative instance (like a video/map element), not plain render state; this is OSMD's actual API for setting zoom.
-    osmd.Zoom = zoomRef.current
+    osmd.Zoom = nextZoom
     osmd.render()
-    lastAppliedZoomRef.current = zoomRef.current
+    lastAppliedZoomRef.current = nextZoom
     pendingRenderRef.current = false
+    setDrawnFocusKey(rangeKey(f))
     setRenderVersion((v) => v + 1)
-  }, [osmd])
+  }, [osmd, effectiveZoom])
+
+  // A new focus range re-renders (not right after load, which already drew it).
+  useEffect(() => {
+    if (!osmd || lastAppliedFocusRef.current === focusKey) return
+    if (frozen) {
+      pendingRenderRef.current = true
+      return
+    }
+    // oxlint-disable-next-line react/set-state-in-effect -- same as the zoom effect below: syncing osmd, the external system.
+    render()
+  }, [osmd, focusKey, frozen, render])
 
   // Re-render at the new zoom level whenever it changes (but not right after
   // load, when the just-loaded render already used it — see lastAppliedZoomRef).
   useEffect(() => {
     if (!osmd) return
+    // Focused, the zoom is fitted to the width — the stored one doesn't apply.
+    if (focusRef.current) return
     if (lastAppliedZoomRef.current === zoom) return
     if (frozen) {
       pendingRenderRef.current = true
@@ -184,5 +230,5 @@ export function useOSMD(musicXml: string, frozen: boolean): UseOSMDResult {
     setZoomState(clamped)
   }, [])
 
-  return { containerRef, osmd, error, zoom, setZoom, renderVersion }
+  return { containerRef, osmd, error, zoom, setZoom, renderVersion, drawnFocusKey }
 }

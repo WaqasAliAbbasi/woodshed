@@ -64,12 +64,16 @@ mountStaticAssets(app, distDir)
 // so a fresh account still only ever sees its own empty library, never
 // anyone else's (see queries.ts's userId scoping).
 
+// `dotfiles: 'allow'` because send() refuses any path with a dot-directory
+// in it, and a git worktree lives under `.claude/worktrees/` — without it
+// both pages 404 in local dev there. Scoped to these two fixed files, never
+// a request-derived path.
 app.get('/login', (_req, res) => {
-  res.sendFile(join(here, 'public/login.html'))
+  res.sendFile(join(here, 'public/login.html'), { dotfiles: 'allow' })
 })
 
 app.get('/signup', (_req, res) => {
-  res.sendFile(join(here, 'public/signup.html'))
+  res.sendFile(join(here, 'public/signup.html'), { dotfiles: 'allow' })
 })
 
 app.post('/api/login', express.json(), (req, res) => {

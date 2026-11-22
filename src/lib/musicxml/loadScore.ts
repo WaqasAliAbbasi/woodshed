@@ -23,7 +23,14 @@ export interface LoadedScore {
  * copies end up stacked in the DOM.
  */
 /** `autoResize` stays off — reflow is driven explicitly by a ResizeObserver in useOSMD instead, so callers control exactly when a re-render (and the GraphicalNote churn that comes with one) happens. */
-export async function loadScore(container: HTMLElement, musicXml: string, signal?: AbortSignal, zoom?: number): Promise<LoadedScore> {
+export async function loadScore(
+  container: HTMLElement,
+  musicXml: string,
+  signal?: AbortSignal,
+  zoom?: number,
+  /** Runs after parsing and before the first render — e.g. to draw only some measures (see drawRange.ts), without paying for a full-score render first. */
+  beforeRender?: (osmd: OpenSheetMusicDisplay) => void,
+): Promise<LoadedScore> {
   const osmd = new OpenSheetMusicDisplay(container, {
     autoResize: false,
     backend: 'svg',
@@ -38,6 +45,7 @@ export async function loadScore(container: HTMLElement, musicXml: string, signal
     throw new DOMException('loadScore aborted', 'AbortError')
   }
   if (zoom !== undefined) osmd.Zoom = zoom
+  beforeRender?.(osmd)
   osmd.render()
   const measureCount = osmd.Sheet.SourceMeasures.length
   return { osmd, measureCount }

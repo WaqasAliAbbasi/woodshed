@@ -1,0 +1,223 @@
+/*
+ * The app shell (docs/learning-path.md, "Look and feel"): one header on every
+ * page, and one content width — about 1200px with clamp(16px, 4vw, 40px)
+ * side padding. No page is a narrower column than the others.
+ */
+
+body {
+  background: var(--bg);
+}
+
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-size: 20px;
+  line-height: 1.45;
+}
+
+.shell-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  padding: 12px clamp(16px, 4vw, 40px);
+  border-bottom: 1px solid var(--border);
+}
+
+.shell-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: auto;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.shell-mark-icon {
+  width: 30px;
+  height: 30px;
+  color: var(--pine);
+  flex: none;
+}
+
+.shell-tabs {
+  display: flex;
+  gap: 8px;
+  font-size: 18px;
+}
+
+.shell-tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 10px;
+  color: var(--pine);
+  text-decoration: none;
+}
+
+.shell-tab:hover {
+  color: var(--text);
+  background: var(--paper-sunk);
+}
+
+.shell-tab[aria-current='page'] {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.shell-account {
+  position: relative;
+}
+
+.shell-account-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--muted);
+}
+
+.shell-account-btn:not(:disabled):hover,
+.shell-account-btn[aria-expanded='true'] {
+  background: var(--paper);
+  color: var(--text);
+}
+
+.shell-account-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  box-shadow: 0 12px 28px -12px var(--shadow-color);
+}
+
+.shell-account-menu > button,
+.shell-account-menu > a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 17px;
+  text-align: left;
+  text-decoration: none;
+}
+
+.shell-account-menu > button:not(:disabled):hover,
+.shell-account-menu > a:hover {
+  background: var(--paper-sunk);
+}
+
+/* ---- practice screens: the slim bar instead of the tabs ---- */
+
+.shell-header-practice {
+  justify-content: space-between;
+  padding-top: 16px;
+  padding-bottom: 16px;
+  font-size: 18px;
+}
+
+.shell-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--pine);
+  text-decoration: none;
+}
+
+.shell-back:hover {
+  color: var(--text);
+}
+
+.shell-where {
+  margin: 0;
+  color: var(--muted);
+}
+
+.shell-where strong {
+  color: var(--text);
+}
+
+.shell-practice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 24px;
+}
+
+.shell-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--pine);
+  font-size: 18px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.shell-link:not(:disabled):hover {
+  background: none;
+  color: var(--text);
+}
+
+/* ---- content width ---- */
+
+.page {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px clamp(16px, 4vw, 40px) 56px;
+  box-sizing: border-box;
+  flex: 1 0 auto;
+}
+
+/* Phone: the tabs get their own row under the mark and account button. */
+@media (max-width: 699px) {
+  .shell-header {
+    gap: 10px 12px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .shell-mark {
+    font-size: 22px;
+  }
+
+  .shell-tabs {
+    order: 3;
+    width: 100%;
+    gap: 4px;
+    font-size: 17px;
+  }
+
+  .shell-tab {
+    flex: 1 1 0;
+    justify-content: center;
+    padding: 0 8px;
+  }
+
+  .page {
+    padding-top: 24px;
+  }
+}

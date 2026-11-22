@@ -1,23 +1,12 @@
 .app {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 1.5rem;
-  /* Set from PracticeSession (see its deckRef effect) to the fixed practice
+  /* Free practice's column, inside the shared .page width (AppShell). Set
+     from PracticeSession (see its deckRef effect) to the fixed practice
      deck's actual rendered height, so the deck never permanently covers page
-     content below it (e.g. the practice log) no matter how tall it gets.
-     Falls back to the base 1.5rem when no deck is mounted (piece library view). */
-  padding-bottom: calc(var(--practice-deck-height, 0px) + 1.5rem);
-  /* Sticky-footer-without-a-wrapper-div: a flex column whose *content*
-     box (this element is content-box, the default — deliberately not
-     switched to border-box, which would also narrow max-width's 640px
-     from a content width to a border width and reflow everything inside
-     it) fills the viewport net of its own padding above, so .app-footer's
-     margin-top: auto below pins it flush with the bottom of the screen on
-     a short page (e.g. an empty library) instead of one padding's worth
-     below it; on a tall page it's pushed down with everything else. */
-  min-height: calc(100vh - 3rem - var(--practice-deck-height, 0px));
+     content below it (e.g. the practice log) no matter how tall it gets. */
+  padding-bottom: var(--practice-deck-height, 0px);
   display: flex;
   flex-direction: column;
+  font-size: 16px;
 }
 
 .panel {
@@ -33,25 +22,6 @@
 }
 
 /* ---------- brand + headers ---------- */
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 1rem;
-}
-
-.brand-mark {
-  width: 32px;
-  height: 32px;
-  color: var(--pine);
-  flex-shrink: 0;
-}
-
-.brand h1 {
-  font-size: 1.7rem;
-  margin: 0;
-}
 
 .app-header {
   display: flex;
@@ -81,25 +51,6 @@
 .link-back:hover {
   background: none;
   text-decoration: underline;
-}
-
-.app-logout {
-  margin-left: auto;
-}
-
-.app-footer {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  margin-top: auto;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border);
-  font-size: 0.85rem;
-}
-
-.app-footer .link-back {
-  margin-top: 0;
-  padding: 0.2rem 0;
 }
 
 .app-title-block {
@@ -527,9 +478,10 @@
  * (same specificity) so it actually wins the cascade at matching widths.
  */
 @media (min-width: 860px) {
-  .app,
   .deck {
-    max-width: 960px;
+    max-width: 1200px;
+    padding-left: clamp(16px, 4vw, 40px);
+    padding-right: clamp(16px, 4vw, 40px);
   }
 }
 
@@ -1246,36 +1198,6 @@
 }
 
 /* ---------- top-level nav (library / sessions / stats) ---------- */
-
-.top-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  margin-bottom: 1.25rem;
-}
-
-.top-nav-btn {
-  white-space: nowrap;
-}
-
-.top-nav-btn {
-  background: none;
-  border: none;
-  border-radius: var(--radius-sm);
-  padding: 0.4rem 0.8rem;
-  color: var(--muted);
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.top-nav-btn:hover {
-  background: var(--accent-soft-bg);
-}
-
-.top-nav-btn-active {
-  background: var(--accent-soft-bg);
-  color: var(--accent-soft-text);
-}
 
 /* ---------- sessions view ---------- */
 

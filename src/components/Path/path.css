@@ -1,23 +1,21 @@
 /*
- * The learning path's screens (docs/learning-path.md, "Principles"): one
- * decision per screen, readable from the piano bench — 20px body text and
- * buttons at least 64px tall. Colors are index.css's tokens, so dark mode
- * follows for free. Fluid and single-column below ~700px (the planning
- * screens are phone-friendly; the practice screens are swapped for the
- * bigger-screen page there instead — see BiggerScreen).
+ * The learning path's screens, styled from the artboards (docs/learning-path.md,
+ * "Look and feel"): one decision per screen, readable from the piano bench —
+ * 18–20px body text and a 64–96px primary button. Cards are --paper on the
+ * page with a 1px border and a 12–14px radius. Colours are index.css's
+ * tokens, so dark mode follows: pine is the primary button, amber means
+ * current or selected, green means ready, warm grey means attempted.
+ * Fluid and single-column below ~700px (see BiggerScreen for the practice
+ * screens there).
  */
 
-.app.app-wide {
-  max-width: 1200px;
-}
-
 .path {
+  position: relative;
   font-size: 20px;
   line-height: 1.45;
   display: flex;
   flex-direction: column;
   gap: 28px;
-  padding-bottom: 32px;
 }
 
 .path p {
@@ -27,15 +25,25 @@
 .path h1,
 .path h2 {
   margin: 0;
-  line-height: 1.12;
+  line-height: 1.1;
+}
+
+.path a {
+  color: var(--pine);
+}
+
+.path a:hover {
+  color: var(--text);
 }
 
 .p-h1 {
-  font-size: clamp(34px, 7vw, 52px);
+  font-size: clamp(36px, 7vw, 52px);
 }
 
 .p-h2 {
+  font-family: var(--font-display);
   font-size: 28px;
+  font-weight: 600;
 }
 
 .p-eyebrow {
@@ -47,23 +55,36 @@
   margin-bottom: 8px !important;
 }
 
+.p-eyebrow-accent {
+  color: var(--accent-soft-text);
+  letter-spacing: 0.06em;
+  margin-bottom: 4px !important;
+}
+
 .p-muted {
   color: var(--muted);
 }
 
 .p-small {
-  font-size: 16px;
+  font-size: 17px;
+}
+
+.p-lede {
+  margin-top: 12px !important;
+  max-width: 760px;
+  font-size: 22px;
 }
 
 .p-card {
-  background: var(--bg);
+  background: var(--paper);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 20px 24px;
+  padding: 24px 28px;
 }
 
 .p-card-accent {
   border: 2px solid var(--accent);
+  border-radius: 14px;
 }
 
 .p-banner {
@@ -77,7 +98,6 @@
 .p-banner-success {
   background: var(--success-bg);
   color: var(--success-text);
-  border: 1px solid var(--success-text);
 }
 
 .p-error {
@@ -96,26 +116,32 @@ a.p-btn {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-height: 64px;
+  min-height: 56px;
   padding: 0 24px;
   box-sizing: border-box;
   border-radius: var(--radius);
-  border: 1px solid var(--border);
+  border: 1px solid var(--line-strong);
   background: transparent;
   color: var(--text);
-  font-size: 19px;
+  font-size: 18px;
   text-decoration: none;
   cursor: pointer;
 }
 
 .p-btn:not(:disabled):hover {
-  background: var(--surface);
+  background: var(--paper);
+}
+
+.p-btn-small {
+  min-height: 52px;
+  padding: 0 18px;
 }
 
 .p-btn-primary,
 a.p-btn-primary {
   min-height: 76px;
   padding: 0 32px;
+  gap: 12px;
   border: none;
   background: var(--pine);
   color: var(--accent-text);
@@ -125,12 +151,29 @@ a.p-btn-primary {
 
 .p-btn-primary:not(:disabled):hover {
   background: var(--pine);
-  filter: brightness(1.1);
+  filter: brightness(1.12);
 }
 
 .p-btn-huge {
   min-height: 96px;
+  gap: 14px;
+  border-radius: 14px;
   font-size: 28px;
+}
+
+.p-btn-next {
+  flex: 1 1 260px;
+  min-height: 88px;
+  border-radius: 14px;
+  font-size: 26px;
+}
+
+.p-btn-stop {
+  min-height: 96px;
+  border-radius: 14px;
+  border-width: 2px;
+  font-size: 26px;
+  font-weight: 600;
 }
 
 .p-link {
@@ -140,6 +183,7 @@ a.p-btn-primary {
   color: var(--pine);
   font-size: 18px;
   text-decoration: underline;
+  text-underline-offset: 3px;
   cursor: pointer;
   min-height: 44px;
 }
@@ -156,17 +200,17 @@ a.p-btn-primary {
   align-items: center;
 }
 
-.p-actions > .p-btn {
-  flex: 1 1 200px;
-}
-
 /* ---------- layout ---------- */
 
 .p-split {
   display: flex;
   flex-wrap: wrap;
-  gap: 32px;
+  gap: 32px 36px;
   align-items: flex-start;
+}
+
+.p-split-stretch {
+  align-items: stretch;
 }
 
 .p-split > .p-main {
@@ -193,22 +237,15 @@ a.p-btn-primary {
   gap: 16px 24px;
 }
 
-.p-topbar {
+.p-header-side {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border);
-  font-size: 18px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  text-align: right;
 }
 
-.p-topbar strong {
-  color: var(--text);
-}
-
-/* ---------- plan ---------- */
+/* ---------- today's plan ---------- */
 
 .p-steps {
   list-style: none;
@@ -228,16 +265,19 @@ a.p-btn-primary {
   box-sizing: border-box;
   border-radius: var(--radius);
   border: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--paper-sunk);
 }
 
 .p-step-current {
   border: 2px solid var(--accent);
-  background: var(--bg);
+  background: var(--paper);
 }
 
 .p-step-done {
   background: transparent;
+}
+
+.p-step-done .p-step-title {
   color: var(--muted);
 }
 
@@ -247,7 +287,7 @@ a.p-btn-primary {
   height: 38px;
   box-sizing: border-box;
   border-radius: 50%;
-  border: 2px solid var(--border);
+  border: 2px solid var(--line-strong);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -269,8 +309,8 @@ a.p-btn-primary {
 
 .p-step-done .p-step-mark {
   border: none;
-  background: var(--success-text);
-  color: var(--bg);
+  background: var(--ready);
+  color: var(--accent-text);
 }
 
 .p-step-body {
@@ -282,7 +322,15 @@ a.p-btn-primary {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 2px 10px;
+  gap: 4px 10px;
+}
+
+.p-step-title > strong {
+  font-weight: 600;
+}
+
+.p-step-what {
+  font-size: 17px;
 }
 
 .p-step-why {
@@ -297,25 +345,33 @@ a.p-btn-primary {
   color: var(--muted);
 }
 
+/* A segmented choice: a sunk track with the picked option lifted on paper. */
 .p-segmented {
   display: inline-flex;
-  border: 1px solid var(--border);
+  padding: 4px;
   border-radius: var(--radius);
-  overflow: hidden;
+  background: var(--surface);
 }
 
 .p-segmented button {
-  min-height: 48px;
-  min-width: 64px;
+  flex: 1 1 0;
+  min-height: 44px;
+  padding: 0 18px;
   border: none;
-  border-radius: 0;
+  border-radius: 9px;
   background: transparent;
+  color: var(--text-soft);
   font-size: 17px;
+  white-space: nowrap;
+}
+
+.p-segmented button:not(:disabled):hover {
+  background: var(--paper-sunk);
 }
 
 .p-segmented button[aria-pressed='true'] {
-  background: var(--accent-soft-bg);
-  color: var(--accent-soft-text);
+  background: var(--paper);
+  color: var(--text);
   font-weight: 600;
 }
 
@@ -332,11 +388,23 @@ a.p-btn-primary {
 }
 
 .p-cells .p-cell-ready {
-  background: var(--success-text);
+  background: var(--ready);
 }
 
 .p-cells .p-cell-now {
-  background: var(--wash-ready);
+  background: var(--touched);
+}
+
+.p-beats {
+  width: 200px;
+}
+
+.p-beats span {
+  height: 16px;
+}
+
+.p-beats .p-cell-now-beat {
+  background: var(--accent);
 }
 
 .p-pieces {
@@ -354,20 +422,58 @@ a.p-btn-primary {
   gap: 6px;
 }
 
+.p-pieces .p-piece-quiet {
+  opacity: 0.7;
+}
+
 .p-tag {
   padding: 1px 10px;
   border-radius: 999px;
   background: var(--surface);
+  color: var(--text);
   font-size: 14px;
+  font-weight: 400;
   white-space: nowrap;
+}
+
+.p-tag-exam {
+  background: var(--exam-bg);
+  color: var(--exam-text);
 }
 
 .p-select {
   max-width: 100%;
   min-width: 0;
   min-height: 48px;
-  font-size: 18px;
+  padding: 0 14px;
   border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--paper);
+  font-size: 18px;
+}
+
+.p-plan-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 28px;
+}
+
+.p-settings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  font-size: 17px;
+  color: var(--muted);
+}
+
+.p-settings label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 
 /* ---------- forms ---------- */
@@ -380,9 +486,9 @@ a.p-btn-primary {
 .p-field {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   font-weight: 600;
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .p-field input,
@@ -391,27 +497,28 @@ a.p-btn-primary {
 .p-input {
   max-width: 100%;
   min-width: 0;
-  min-height: 56px;
-  padding: 0 16px;
+  min-height: 52px;
+  padding: 0 14px;
   box-sizing: border-box;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--bg);
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--paper);
   color: var(--text);
   font: inherit;
   font-weight: 400;
-  font-size: 19px;
+  font-size: 18px;
 }
 
 .p-field textarea {
-  padding: 12px 16px;
+  padding: 12px 14px;
   min-height: 96px;
+  resize: vertical;
 }
 
 .p-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 14px;
 }
 
 .p-row > * {
@@ -420,47 +527,61 @@ a.p-btn-primary {
 
 .p-outcomes {
   display: flex;
-  border: 1px solid var(--border);
+  padding: 4px;
   border-radius: var(--radius);
-  overflow: hidden;
+  background: var(--surface);
 }
 
 .p-outcomes button {
   flex: 1 1 0;
-  min-height: 56px;
+  min-height: 46px;
+  padding: 0 8px;
   border: none;
-  border-radius: 0;
+  border-radius: 9px;
   background: transparent;
-  font-size: 18px;
+  color: var(--text-soft);
+  font-size: 16px;
 }
 
-.p-outcomes button + button {
-  border-left: 1px solid var(--border);
+.p-outcomes button:not(:disabled):hover {
+  background: var(--paper-sunk);
 }
 
 .p-outcomes button[aria-pressed='true'] {
-  background: var(--accent-soft-bg);
-  color: var(--accent-soft-text);
+  background: var(--paper);
+  color: var(--text);
   font-weight: 600;
 }
 
-/* ---------- piece overview ---------- */
+/* ---------- piece overview: the chunk strip ---------- */
+
+.p-strip-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 
 .p-strip {
   overflow-x: auto;
+  padding: 20px 24px;
 }
 
 .p-strip-inner {
-  min-width: 720px;
+  min-width: 900px;
   display: flex;
+  flex-direction: column;
   gap: 4px;
+}
+
+.p-strip-row {
+  display: flex;
 }
 
 .p-strip-chunk {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .p-strip-chip {
@@ -468,53 +589,100 @@ a.p-btn-primary {
   display: inline-flex;
   gap: 8px;
   align-items: baseline;
+  margin: 0 8px;
   padding: 5px 12px;
   border-radius: 999px;
+  border: 1px solid var(--surface);
   background: var(--surface);
   font-size: 16px;
   white-space: nowrap;
 }
 
+.p-strip-chip > span {
+  color: var(--muted);
+}
+
 .p-strip-chip-repeat {
   background: transparent;
-  border: 1px dashed var(--muted);
+  border: 1px dashed var(--bar-quiet);
 }
 
 .p-strip-chip-ready {
   background: var(--success-bg);
+  border-color: var(--success-bg);
+}
+
+.p-strip-chip-ready,
+.p-strip-chip-ready > span {
   color: var(--success-text);
+}
+
+.p-strip-chip-new {
+  background: var(--paper-sunk);
+  border-color: var(--border-subtle);
 }
 
 .p-strip-bars {
   display: flex;
+}
+
+/* One bar: its number, then two staves (five lines each) with a gap between. */
+.p-strip-bar {
+  flex: 1 1 0;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 0 10px;
+  border-left: 1px solid var(--touched);
+}
+
+.p-strip-bar-first {
   border-left: 3px solid var(--pine);
 }
 
-.p-strip-bar {
-  flex: 1 1 0;
-  height: 56px;
-  position: relative;
-  border-right: 1px solid var(--border);
-  background-image: repeating-linear-gradient(to bottom, var(--border) 0, var(--border) 1px, transparent 1px, transparent 9px);
-  background-size: 100% 41px;
-  background-repeat: no-repeat;
-  background-position: 0 14px;
-}
-
-.p-strip-bar span {
+.p-strip-bar > span {
   position: absolute;
-  top: -2px;
-  left: 4px;
-  font-size: 12px;
+  top: 2px;
+  left: 6px;
+  font-size: 13px;
   color: var(--muted);
 }
 
+.p-strip-bar > i {
+  display: block;
+  height: 33px;
+  background-image: repeating-linear-gradient(to bottom, var(--muted) 0, var(--muted) 1px, transparent 1px, transparent 8px);
+  opacity: 0.75;
+}
+
+.p-strip-end {
+  flex: none;
+  width: 4px;
+  margin: 22px 0 10px;
+  background: var(--text);
+}
+
 .p-strip-repeat .p-strip-bar {
+  background-image: repeating-linear-gradient(135deg, var(--wash-touched) 0, var(--wash-touched) 4px, transparent 4px, transparent 10px);
+}
+
+.p-strip-wash-touched {
   background-color: var(--wash-touched);
 }
 
-.p-strip-ready .p-strip-bar {
+.p-strip-wash-ready {
   background-color: var(--wash-ready);
+}
+
+.p-strip-bracket {
+  height: 10px;
+  margin-top: 4px;
+  box-sizing: border-box;
+  border: 2px solid var(--ready);
+  border-top: 0;
+  border-radius: 0 0 6px 6px;
 }
 
 .p-howto {
@@ -528,9 +696,104 @@ a.p-btn-primary {
 
 .p-howto li {
   flex: 1 1 200px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-/* ---------- step screen ---------- */
+/* ---------- the whole piece, locked ---------- */
+
+.p-lock {
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  border-style: dashed;
+  border-color: var(--line-strong);
+  border-radius: 14px;
+  background: var(--paper-sunk);
+}
+
+.p-lock-head {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  color: var(--muted);
+}
+
+.p-lock-head > div {
+  color: var(--text);
+}
+
+.p-lock-title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.15;
+  font-weight: 600;
+}
+
+.p-lock .p-btn {
+  min-height: 64px;
+  font-size: 20px;
+}
+
+/* ---------- the practice step ---------- */
+
+/* Score first: rung pills, then the chunk's measures, then the decision. After
+   a try the result leads and the score (with that try's notes coloured)
+   follows; a nudge or a milestone keeps it mounted but out of sight, since
+   the next try plays from it. */
+.p-practice > * {
+  order: 2;
+}
+
+.p-practice > .p-ladder {
+  order: 0;
+}
+
+.p-practice > .p-score {
+  order: 1;
+}
+
+.p-practice-result > .p-score {
+  order: 3;
+}
+
+.p-score {
+  padding: 24px 32px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--paper);
+}
+
+.p-score .score-viewer {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.p-score-hidden {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-width: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+  .p-score {
+    background: transparent;
+  }
+}
 
 .p-ladder {
   list-style: none;
@@ -543,6 +806,12 @@ a.p-btn-primary {
 }
 
 .p-ladder li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.p-rung {
   display: inline-flex;
   align-items: center;
   min-height: 40px;
@@ -555,20 +824,51 @@ a.p-btn-primary {
   white-space: nowrap;
 }
 
-.p-ladder .p-rung-done {
-  border-color: var(--success-text);
+.p-rung-done {
+  border-color: var(--ready);
   background: var(--success-bg);
   color: var(--success-text);
+  font-weight: 500;
 }
 
-.p-ladder .p-rung-now {
+.p-rung-now {
   border: 2px solid var(--accent);
+  background: var(--paper);
   color: var(--text);
   font-weight: 600;
 }
 
-.p-ladder .p-rung-skip {
-  border-style: dashed;
+.p-rung-skip {
+  border: 1px dashed var(--line-strong);
+}
+
+.p-ladder-arrow {
+  color: var(--bar-quiet);
+}
+
+.p-try-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  align-items: stretch;
+}
+
+.p-tempo-panel {
+  flex: 999 1 520px;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px 40px;
+  align-items: center;
+}
+
+.p-tempo-goal {
+  flex: 1 1 260px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 18px;
 }
 
 .p-tempo-big {
@@ -583,6 +883,30 @@ a.p-btn-primary {
   font-size: 24px;
   font-weight: 500;
   color: var(--muted);
+}
+
+/* "No click" stands where the tempo would, at a size that keeps the panel the same height. */
+.p-tempo-words {
+  font-size: 64px;
+  line-height: 88px;
+}
+
+.p-play {
+  flex: 1 1 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: center;
+}
+
+.p-play-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.p-play-secondary > .p-btn {
+  flex: 1 1 160px;
 }
 
 .p-tries {
@@ -608,31 +932,104 @@ a.p-btn-primary {
 }
 
 .p-tries .p-try-latest {
-  font-weight: 700;
+  font-weight: 600;
 }
+
+.p-offer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+}
+
+/* ---------- after a try ---------- */
 
 .p-result {
   display: flex;
   flex-wrap: wrap;
   gap: 20px 28px;
   align-items: center;
+  padding-top: 24px;
 }
 
 .p-result-mark {
   flex: none;
-  width: 88px;
-  height: 88px;
+  width: 96px;
+  height: 96px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 44px;
-  color: var(--bg);
-  background: var(--success-text);
+  color: var(--accent-text);
+  background: var(--ready);
 }
 
 .p-result-mark-miss {
-  background: var(--muted);
+  background: transparent;
+  border: 3px solid var(--line-strong);
+  box-sizing: border-box;
+}
+
+.p-result-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--bar-quiet);
+}
+
+.p-result-text {
+  flex: 1 1 360px;
+  min-width: 0;
+}
+
+.p-result-title {
+  font-size: clamp(40px, 7vw, 60px);
+  line-height: 1.05 !important;
+}
+
+.p-result-detail {
+  margin-top: 10px !important;
+  font-size: 22px;
+}
+
+.p-next {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px 40px;
+  align-items: center;
+  padding: 28px 32px;
+}
+
+.p-next-text {
+  flex: 999 1 380px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.p-next-title {
+  font-family: var(--font-display);
+  font-size: clamp(30px, 4vw, 40px);
+  line-height: 1.15;
+  font-weight: 600;
+}
+
+.p-after-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* ---------- nudge ---------- */
+
+.p-nudge {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  padding-top: 24px;
 }
 
 .p-choices {
@@ -642,24 +1039,25 @@ a.p-btn-primary {
 }
 
 .p-choice {
-  flex: 1 1 300px;
+  flex: 1 1 320px;
   min-height: 160px;
   box-sizing: border-box;
   padding: 28px;
   border-radius: 14px;
-  border: 2px solid var(--border);
-  background: var(--bg);
+  border: 2px solid var(--line-strong);
+  background: var(--paper);
+  color: var(--text);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 14px;
+  gap: 16px;
   text-align: left;
 }
 
 .p-choice:not(:disabled):hover {
   border-color: var(--accent);
-  background: var(--bg);
+  background: var(--paper);
 }
 
 .p-choice-kind {
@@ -672,71 +1070,216 @@ a.p-btn-primary {
 
 .p-choice-title {
   font-family: var(--font-display);
-  font-size: 32px;
+  font-size: 34px;
   line-height: 1.15;
   font-weight: 600;
 }
 
-.p-lock {
-  border-style: dashed;
+/* ---------- join milestone ---------- */
+
+.p-milestone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px 28px;
+  padding: 24px 28px;
+  border-radius: 14px;
+  border: 1px solid var(--ready);
+  background: var(--success-bg);
+  color: var(--success-text);
 }
 
-.p-score {
-  background: #fffaf0;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
+.p-milestone-mark {
+  width: 64px;
+  height: 64px;
 }
 
-@media (prefers-color-scheme: dark) {
-  .p-score {
-    background: transparent;
-  }
+.p-milestone-title {
+  font-size: clamp(32px, 5vw, 44px);
+  color: var(--success-text);
+}
+
+.p-milestone-text {
+  margin-top: 6px !important;
+}
+
+.p-next-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 28px;
 }
 
 /* ---------- library ---------- */
 
-.p-book-marks {
+.p-collection {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: clamp(18px, 4vw, 28px);
+  border-radius: 14px;
+}
+
+.p-collection-head {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.p-collection-title {
+  margin-top: 2px !important;
+  font-size: 34px;
+  line-height: 1.15;
+}
+
+.p-btn-outline {
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-size: 17px;
+}
+
+.p-btn-outline-pine {
+  border-color: var(--pine);
+  color: var(--pine);
+  font-weight: 600;
+}
+
+.p-set {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.p-set > li {
+  flex: 1 1 250px;
+  min-width: 0;
+  display: flex;
+}
+
+.p-set-piece {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-subtle);
+  background: var(--paper-sunk);
+  color: var(--text);
+  text-align: left;
+  font-size: 20px;
+}
+
+.p-set-piece:not(:disabled):hover {
+  background: var(--paper-sunk);
+  border-color: var(--line-strong);
+}
+
+.p-book-marks {
+  display: flex;
+  gap: 3px;
 }
 
 .p-book-marks span {
-  width: 14px;
-  height: 22px;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 26px;
   border-radius: 3px;
   background: var(--border-subtle);
   box-sizing: border-box;
 }
 
 .p-book-marks .p-mark-done {
-  background: var(--success-text);
+  background: var(--ready);
 }
 
 .p-book-marks .p-mark-current {
-  background: var(--bg);
+  background: var(--paper);
+  border: 3px solid var(--accent);
+}
+
+.p-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.p-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.p-legend i {
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border-radius: 3px;
+  background: var(--border-subtle);
+}
+
+.p-legend .p-mark-done {
+  background: var(--ready);
+}
+
+.p-legend .p-mark-current {
+  background: transparent;
   border: 3px solid var(--accent);
 }
 
 .p-upnext {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 14px;
 }
 
 .p-upnext > button {
-  flex: 1 1 240px;
-  min-height: 96px;
+  flex: 1 1 280px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  justify-content: center;
-  gap: 4px;
-  padding: 14px 18px;
+  gap: 6px;
+  padding: 18px;
   border-radius: var(--radius);
   border: 1px solid var(--border-subtle);
-  background: var(--bg);
+  background: var(--paper);
+  color: var(--text);
   text-align: left;
+}
+
+.p-upnext > button:not(:disabled):hover {
+  background: var(--paper);
+  border-color: var(--line-strong);
+}
+
+.p-upnext > .p-upnext-current {
+  border: 2px solid var(--accent);
+}
+
+.p-upnext-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.p-loose {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 28px;
+  border-radius: 14px;
+  border: 1px dashed var(--line-strong);
 }
 
 .p-piece-list {
@@ -756,7 +1299,7 @@ a.p-btn-primary {
   padding: 8px 16px;
   border-radius: var(--radius);
   border: 1px solid var(--border-subtle);
-  background: var(--bg);
+  background: var(--paper);
 }
 
 .p-piece-row > button:first-child {
@@ -772,13 +1315,35 @@ a.p-btn-primary {
   font-size: 19px;
 }
 
+/* ---------- log a lesson ---------- */
+
+.p-lesson-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.p-add-piece {
+  min-height: 52px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--bar-quiet);
+  background: transparent;
+  color: var(--pine);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* ---------- phones ---------- */
+
 @media (max-width: 699px) {
   .path {
     gap: 22px;
+    font-size: 18px;
   }
 
   .p-card {
-    padding: 16px;
+    padding: 18px;
   }
 
   .p-step {
@@ -786,10 +1351,19 @@ a.p-btn-primary {
     gap: 12px;
   }
 
+  .p-header-side {
+    align-items: flex-start;
+    text-align: left;
+  }
+
   .p-btn-primary,
   a.p-btn-primary {
     width: 100%;
     font-size: 21px;
     padding: 0 16px;
+  }
+
+  .p-collection-title {
+    font-size: 28px;
   }
 }

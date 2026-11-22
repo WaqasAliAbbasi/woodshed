@@ -29,6 +29,8 @@ export function ScoreViewer({
   handFilter,
   measureStatus,
   frozen,
+  focus,
+  onDrawn,
 }: {
   musicXml: string
   onReady: (osmd: OpenSheetMusicDisplay | undefined) => void
@@ -45,8 +47,21 @@ export function ScoreViewer({
    * see useOSMD for what a re-render mid-attempt actually costs.
    */
   frozen: boolean
+  /**
+   * Draw only these measures, zoomed to fill the width, with no zoom
+   * buttons — the learning path's practice step (docs/learning-path.md,
+   * "Practice step"). Free practice leaves it unset and keeps the whole
+   * score and its zoom control.
+   */
+  focus?: MeasureRange
+  /** Told which focus range is drawn after every render (see `rangeKey`) — a range only becomes playable once it is. */
+  onDrawn?: (focusKey: string | undefined) => void
 }) {
-  const { containerRef, osmd, error, zoom, setZoom, renderVersion } = useOSMD(musicXml, frozen)
+  const { containerRef, osmd, error, zoom, setZoom, renderVersion, drawnFocusKey } = useOSMD(musicXml, frozen, focus)
+
+  useEffect(() => {
+    if (renderVersion > 0) onDrawn?.(drawnFocusKey)
+  }, [renderVersion, drawnFocusKey, onDrawn])
   const highlightedNotesRef = useRef<GraphicalNote[]>([])
 
   // Read through a ref so the click listener (attached once per osmd
@@ -191,7 +206,7 @@ export function ScoreViewer({
           hold the re-render until the attempt ended, so the buttons would
           appear to do nothing for as long as you're playing. The title sits
           on the wrapper because a disabled button doesn't show its own. */}
-      <div className="zoom-control" title={frozen ? 'Zoom is locked until the attempt is finished' : undefined}>
+      {!focus && <div className="zoom-control" title={frozen ? 'Zoom is locked until the attempt is finished' : undefined}>
         <button
           type="button"
           aria-label="Zoom out"
@@ -209,7 +224,7 @@ export function ScoreViewer({
         >
           +
         </button>
-      </div>
+      </div>}
       <div ref={containerRef} />
     </div>
   )

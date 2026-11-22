@@ -3,7 +3,7 @@ import './App.css'
 import { HistoryView } from './components/History/HistoryView'
 import { InputSourceSelector } from './components/InputSourceSelector/InputSourceSelector'
 import { useMidiInput, type UseMidiInputResult } from './components/InputSourceSelector/useMidiInput'
-import { McpInfoLink } from './components/McpInfo/McpInfo'
+import { AppShell, PracticeShell } from './components/AppShell/AppShell'
 import { BiggerScreen } from './components/Path/BiggerScreen'
 import { LibraryView } from './components/Path/LibraryView'
 import { overviewHref } from './components/Path/links'
@@ -17,15 +17,7 @@ import { flushOutbox } from './lib/db/attemptsRepo'
 import { getPiece, updatePiece, updateTargetTempo } from './lib/db/piecesRepo'
 import { getTempoPresets } from './lib/musicxml/buildExpectedTimeline'
 import type { Piece } from './lib/db/db'
-import { matchPath, navigate, useIsPhone, useRoute } from './lib/router'
-
-/** The top-level pages, in nav order. */
-const NAV = [
-  ['/', 'Today'],
-  ['/library', 'Library'],
-  ['/sessions', 'Sessions'],
-  ['/stats', 'Stats'],
-] as const
+import { matchPath, useIsPhone, useRoute } from './lib/router'
 
 // These pull in OpenSheetMusicDisplay, by far the heaviest dependency in
 // the app, so they're kept out of the initial bundle and only fetched once
@@ -35,26 +27,6 @@ const PracticeWorkspace = lazy(() =>
 )
 const PieceOverview = lazy(() => import('./components/Path/PieceOverview').then((m) => ({ default: m.PieceOverview })))
 const PathStep = lazy(() => import('./components/Path/PathStep').then((m) => ({ default: m.PathStep })))
-
-function WoodshedMark() {
-  return (
-    <svg
-      className="brand-mark"
-      viewBox="0 0 48 48"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.6"
-      strokeLinejoin="round"
-      strokeLinecap="round"
-      aria-hidden="true"
-    >
-      <path d="M4 23 L24 7 L44 23" />
-      <rect x="30" y="9" width="5" height="9" />
-      <path d="M8 23 V41 H40 V23" />
-      <rect x="20.5" y="29" width="7" height="12" />
-    </svg>
-  )
-}
 
 function RenamableTitle({ piece, onRenamed }: { piece: Piece; onRenamed: (piece: Piece) => void }) {
   const [editing, setEditing] = useState(false)
@@ -166,37 +138,6 @@ function RenamableComposer({ piece, onRenamed }: { piece: Piece; onRenamed: (pie
   )
 }
 
-// A place for site-level links that aren't part of the practice flow
-// itself — MCP docs today, room for e.g. privacy/about later — kept out of
-// the header so it doesn't compete with the actual task at hand there.
-function AppFooter() {
-  return (
-    <footer className="app-footer">
-      <McpInfoLink />
-      {/* Server-rendered page (server/routes/export.ts), so a plain link, not client routing. */}
-      <a className="link-back" href="/export-key">
-        Export key
-      </a>
-    </footer>
-  )
-}
-
-function LogoutButton() {
-  return (
-    <button
-      type="button"
-      className="link-back app-logout"
-      onClick={() => {
-        void fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }).finally(() => {
-          window.location.href = '/login'
-        })
-      }}
-    >
-      Log out
-    </button>
-  )
-}
-
 /**
  * Free practice — the original practice workspace, unchanged: pick any
  * measures, any mode, any tempo. Its attempts are recorded and show in
@@ -251,9 +192,6 @@ function FreePractice({ pieceId, midi }: { pieceId: string; midi: UseMidiInputRe
   return (
     <>
       <div className="app-header">
-        <button type="button" className="link-back" onClick={() => navigate(overviewHref(piece.id))}>
-          ‹ Path
-        </button>
         <div className="app-title-block">
           <RenamableTitle piece={piece} onRenamed={setPiece} />
           <RenamableComposer piece={piece} onRenamed={setPiece} />
@@ -287,47 +225,13 @@ function FreePractice({ pieceId, midi }: { pieceId: string; midi: UseMidiInputRe
   )
 }
 
-function TopNav({ path }: { path: string }) {
+/** A practice screen on a phone: the bigger-screen page instead (docs/learning-path.md, "Devices"). */
+function PhoneShell({ pieceId, label }: { pieceId: string; label?: string }) {
   return (
-    <nav className="top-nav" aria-label="Sections">
-      {NAV.map(([href, label]) => (
-        <button
-          key={href}
-          type="button"
-          className={`top-nav-btn${path === href ? ' top-nav-btn-active' : ''}`}
-          aria-current={path === href ? 'page' : undefined}
-          onClick={() => navigate(href)}
-        >
-          {label}
-        </button>
-      ))}
-      <button type="button" className="top-nav-btn" style={{ marginLeft: 'auto' }} onClick={() => navigate('/lesson')}>
-        Log a lesson
-      </button>
-    </nav>
+    <AppShell active={undefined}>
+      <BiggerScreen pieceId={pieceId} label={label} />
+    </AppShell>
   )
-}
-
-/** Brand, nav and footer around a top-level page. `wide` pages use the full desktop width (the path screens); the rest keep the original single column. */
-function Shell({ path, wide, children }: { path: string; wide?: boolean; children: React.ReactNode }) {
-  return (
-    <main className={`app${wide ? ' app-wide' : ''}`}>
-      <header className="brand">
-        <WoodshedMark />
-        <h1>Woodshed</h1>
-        <LogoutButton />
-      </header>
-      <TopNav path={path} />
-      {children}
-      <AppFooter />
-    </main>
-  )
-}
-
-/** A practice screen: laptop or tablet only. Below ~700px it's the bigger-screen page instead (docs/learning-path.md, "Devices"). */
-function PracticeOnly({ isPhone, pieceId, label, children }: { isPhone: boolean; pieceId: string; label?: string; children: React.ReactNode }) {
-  if (isPhone) return <BiggerScreen pieceId={pieceId} label={label} />
-  return <Suspense fallback={<div className="panel">Loading…</div>}>{children}</Suspense>
 }
 
 function App() {
@@ -344,70 +248,78 @@ function App() {
 
   let params: Record<string, string> | undefined
   if ((params = matchPath('/piece/:id/free', path))) {
+    const pieceId = params.id
+    if (isPhone) return <PhoneShell pieceId={pieceId} label="Free practice" />
     return (
-      <main className="app">
-        <PracticeOnly isPhone={isPhone} pieceId={params.id} label="Free practice">
-          <FreePractice key={params.id} pieceId={params.id} midi={midi} />
-        </PracticeOnly>
-        <AppFooter />
-      </main>
+      <PracticeShell
+        back={{ href: overviewHref(pieceId), label: 'Path' }}
+        where={<strong>Free practice</strong>}
+        right={<span className="shell-where">Plays anything · doesn't move the path</span>}
+      >
+        <div className="app app-free">
+          <Suspense fallback={<div className="panel">Loading…</div>}>
+            <FreePractice key={pieceId} pieceId={pieceId} midi={midi} />
+          </Suspense>
+        </div>
+      </PracticeShell>
     )
   }
   if ((params = matchPath('/piece/:id/play', path))) {
+    if (isPhone) return <PhoneShell pieceId={params.id} label={search.get('review') ? 'one run' : undefined} />
+    // PathStep draws its own slim practice bar: what it says depends on the step.
     return (
-      <main className="app app-wide">
-        <PracticeOnly isPhone={isPhone} pieceId={params.id} label={search.get('review') ? 'one run' : undefined}>
-          <PathStep key={params.id} pieceId={params.id} midi={midi} search={search} />
-        </PracticeOnly>
-      </main>
+      <Suspense fallback={<AppShell active={undefined}><p className="p-muted">Loading…</p></AppShell>}>
+        <PathStep key={params.id} pieceId={params.id} midi={midi} search={search} />
+      </Suspense>
     )
   }
   if ((params = matchPath('/piece/:id', path))) {
+    if (isPhone) return <PhoneShell pieceId={params.id} label="overview" />
     return (
-      <Shell path={path} wide>
-        <PracticeOnly isPhone={isPhone} pieceId={params.id} label="overview">
+      <AppShell active="/library">
+        <Suspense fallback={<p className="p-muted">Loading…</p>}>
           <PieceOverview key={params.id} pieceId={params.id} />
-        </PracticeOnly>
-      </Shell>
+        </Suspense>
+      </AppShell>
     )
   }
 
   switch (path) {
     case '/library':
       return (
-        <Shell path={path} wide>
+        <AppShell active="/library">
           <LibraryView />
-        </Shell>
+        </AppShell>
       )
     case '/sessions':
       return (
-        <Shell path={path}>
+        <AppShell active="/sessions">
           <SessionsView />
-        </Shell>
+        </AppShell>
       )
     case '/stats':
       return (
-        <Shell path={path}>
+        <AppShell active="/stats">
           <StatsView />
-        </Shell>
+        </AppShell>
       )
     case '/lesson':
       return (
-        <Shell path={path} wide>
+        <AppShell active="/sessions">
           <LogLesson />
-        </Shell>
+        </AppShell>
       )
     case '/done':
       return (
-        <Shell path={path} wide>
+        <AppShell active="/">
           <SessionEnd />
-        </Shell>
+        </AppShell>
       )
     default:
       return (
-        <Shell path="/" wide>
+        <AppShell active="/">
           <TodayPlan />
-        </Shell>
+        </AppShell>
       )
   }
 }

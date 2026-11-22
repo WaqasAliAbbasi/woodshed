@@ -13,6 +13,23 @@
   --accent-soft-bg: #efd9ae;
   --accent-soft-text: #6b4a1e;
   --pine: #33513f;
+  /* Card surfaces from the learning-path artboards: --paper lifts a card off
+     the page, --paper-sunk is a quieter one (pending plan steps, a locked
+     card). --line-strong outlines secondary buttons and inputs, a step
+     darker than --border. */
+  --paper: #fffaf0;
+  --paper-sunk: #fbf3e3;
+  --line-strong: #c9b183;
+  --text-soft: #4a3d2b;
+  /* Ready, as a fill (chunk cells, book marks, "done" ticks). Same green as
+     theme.ts's CORRECT_COLOR. Neutral warm grey is "attempted, not ready". */
+  --ready: #5b7f52;
+  --touched: rgba(110, 91, 64, 0.35);
+  --bar-quiet: #a8936b;
+  /* The exam tag: a cool counterpart to the book's warm tag, so the two
+     kinds of collection read apart at a glance. */
+  --exam-bg: #e4e9f3;
+  --exam-text: #2b3a55;
   /* Per-measure practice progress, washed behind the notation (see
      ScoreViewer). Deliberately not --accent: amber already means "this is
      the range you selected", and a measure's progress must not read as a
@@ -67,6 +84,15 @@
     --accent-soft-bg: #3b2c16;
     --accent-soft-text: #e9c485;
     --pine: #7fae95;
+    --paper: #241d15;
+    --paper-sunk: #201912;
+    --line-strong: #5a4830;
+    --text-soft: #d2c3a8;
+    --ready: #7fa874;
+    --touched: rgba(179, 161, 134, 0.35);
+    --bar-quiet: #8a7655;
+    --exam-bg: #232b3a;
+    --exam-text: #b7c6e3;
     --wash-ready: rgba(116, 216, 130, 0.26);
     --wash-touched: rgba(179, 161, 134, 0.08);
     --danger-bg: #3a2018;

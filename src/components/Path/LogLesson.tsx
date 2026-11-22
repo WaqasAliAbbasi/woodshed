@@ -96,69 +96,72 @@ function LessonForm({ overview }: { overview: PathOverview }) {
     }
   }
 
+  const continuing = rows.filter((r) => r.outcome !== 'finished').length
+
   return (
-    <div className="path" style={{ maxWidth: 760 }}>
+    <div className="path">
       <div>
         <h1 className="p-h1">Log a lesson</h1>
-        <p className="p-muted">What you covered sets next week's plan.</p>
+        <p className="p-muted" style={{ marginTop: 6 }}>
+          What you covered sets next week's plan.
+        </p>
       </div>
-      <div className="p-row">
-        <label className="p-field">
+      <div className="p-row p-lesson-when">
+        <label className="p-field" style={{ flex: '2 1 200px' }}>
           Date
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </label>
-        <label className="p-field">
+        <label className="p-field" style={{ flex: '1 1 120px' }}>
           Minutes
           <input type="number" min={0} max={240} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} />
         </label>
       </div>
 
-      <fieldset className="p-card" style={{ display: 'flex', flexDirection: 'column', gap: 18, margin: 0 }}>
-        <legend className="p-h2" style={{ fontFamily: 'var(--font-display)', fontWeight: 600, padding: '0 6px' }}>
-          Pieces you covered
-        </legend>
+      <fieldset className="p-lesson-pieces">
+        <legend className="p-h2">Pieces you covered</legend>
         {rows.length === 0 && <p className="p-muted">Add each piece your teacher heard or set.</p>}
-        {rows.map((row) => (
-          <div key={row.pieceId} style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 16, borderBottom: '1px solid var(--border-subtle)' }}>
-            <div className="p-step-title" style={{ justifyContent: 'space-between' }}>
-              <span>
-                <strong>{titles.get(row.pieceId)}</strong>{' '}
-                {collectionLabel(row.pieceId, overview.collections) && (
-                  <span className="p-tag">{collectionLabel(row.pieceId, overview.collections)}</span>
-                )}
-              </span>
-              <button type="button" className="p-link" onClick={() => setRows((rs) => rs.filter((r) => r.pieceId !== row.pieceId))}>
+        <div className="p-lesson-rows">
+          {rows.map((row) => (
+            <div key={row.pieceId} className="p-card p-lesson-row">
+              <div className="p-lesson-row-head">
+                <strong>{titles.get(row.pieceId)}</strong>
+                <span className="p-muted" style={{ fontSize: 14 }}>
+                  {collectionLabel(row.pieceId, overview.collections)}
+                </span>
+              </div>
+              <div className="p-outcomes" role="group" aria-label={`Outcome for ${titles.get(row.pieceId)}`}>
+                {OUTCOMES.map((o) => (
+                  <button key={o.value} type="button" aria-pressed={row.outcome === o.value} onClick={() => update(row.pieceId, { outcome: o.value })}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              {row.outcome === 'continue' ? (
+                <label className="p-field" style={{ fontWeight: 400, fontSize: 15, color: 'var(--muted)' }}>
+                  Focus for this week
+                  <input type="text" value={row.focus} placeholder="e.g. m. 8 left hand" onChange={(e) => update(row.pieceId, { focus: e.target.value })} />
+                </label>
+              ) : (
+                <p style={{ fontSize: 15, color: 'var(--text-soft)' }}>{EFFECT[row.outcome]}</p>
+              )}
+              <button type="button" className="p-link p-lesson-remove" onClick={() => setRows((rs) => rs.filter((r) => r.pieceId !== row.pieceId))}>
                 Remove
               </button>
             </div>
-            <div className="p-outcomes" role="group" aria-label={`Outcome for ${titles.get(row.pieceId)}`}>
-              {OUTCOMES.map((o) => (
-                <button key={o.value} type="button" aria-pressed={row.outcome === o.value} onClick={() => update(row.pieceId, { outcome: o.value })}>
-                  {o.label}
-                </button>
-              ))}
-            </div>
-            {row.outcome === 'continue' ? (
-              <label className="p-field" style={{ fontWeight: 400, fontSize: 17 }}>
-                Focus for this week
-                <input type="text" value={row.focus} placeholder="e.g. m. 8 left hand" onChange={(e) => update(row.pieceId, { focus: e.target.value })} />
-              </label>
-            ) : (
-              <p className="p-muted p-small">{EFFECT[row.outcome]}</p>
-            )}
-          </div>
-        ))}
+          ))}
+        </div>
         {addable.length > 0 && (
-          <label className="p-field" style={{ fontWeight: 400 }}>
-            Add a piece
+          <label className="p-add-piece">
+            <span aria-hidden="true">+</span>
             <select
+              aria-label="Add a piece"
               value=""
               onChange={(e) => {
                 const pieceId = e.target.value
                 if (pieceId) setRows((rs) => [...rs, { pieceId, outcome: 'new', focus: '' }])
               }}
             >
-              <option value="">Choose a piece…</option>
+              <option value="">Add a piece</option>
               {addable.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.title}
@@ -174,8 +177,13 @@ function LessonForm({ overview }: { overview: PathOverview }) {
         <textarea rows={3} value={note} placeholder="Anything else your teacher said" onChange={(e) => setNote(e.target.value)} />
       </label>
 
+      {continuing > 0 && (
+        <p className="p-banner p-banner-success">
+          Next week's plan: {continuing} piece{continuing === 1 ? '' : 's'}, starting tomorrow.
+        </p>
+      )}
       {saveError && <p className="p-error">{saveError}</p>}
-      <button type="button" className="p-btn p-btn-primary" disabled={saving || rows.length === 0} onClick={() => void save()}>
+      <button type="button" className="p-btn p-btn-primary p-lesson-save" disabled={saving || rows.length === 0} onClick={() => void save()}>
         {saving ? 'Saving…' : 'Save lesson'}
       </button>
     </div>

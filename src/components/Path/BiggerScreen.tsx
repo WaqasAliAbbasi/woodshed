@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { describeStep } from '../../lib/path/nextStep'
-import { navigate } from '../../lib/router'
+import { AppLink } from '../AppShell/AppShell'
 import { usePathData } from './usePathData'
 import './path.css'
 
@@ -33,31 +33,42 @@ export function BiggerScreen({ pieceId, label }: { pieceId?: string; label?: str
     }
   }
 
+  const chevron = (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  )
   return (
-    <div className="path" style={{ gap: 24 }}>
+    <div className="path p-bigger">
+      <svg width="120" height="84" viewBox="0 0 120 84" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label="A laptop" className="p-bigger-art">
+        <rect x="18" y="8" width="84" height="54" rx="6" />
+        <path d="M6 72h108l-6 8H12z" />
+        <path d="M32 26h56M32 36h56M32 46h40" />
+      </svg>
       <div>
-        {context && <p className="p-eyebrow">{context}</p>}
-        <h1 className="p-h1" style={{ fontSize: 34 }}>
-          Practice needs a bigger screen
-        </h1>
-        <p className="p-muted" style={{ marginTop: 10 }}>
-          The score and the Play button are made for a laptop or tablet on the music stand. Browsers on iPhone also can't
-          connect to a MIDI keyboard.
+        {context && (
+          <p className="p-eyebrow" style={{ marginBottom: 6, fontSize: 14 }}>
+            {context}
+          </p>
+        )}
+        <h1 className="p-bigger-title">Practice needs a bigger screen</h1>
+        <p style={{ marginTop: 10, color: 'var(--text-soft)' }}>
+          The score and the Play button are made for a laptop on the music stand. Phone browsers on iPhone also can't connect to a MIDI keyboard.
         </p>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <p className="p-muted p-small">From your phone you can</p>
-        <button type="button" className="p-btn" style={{ justifyContent: 'space-between' }} onClick={() => navigate('/')}>
-          See today's plan <span aria-hidden="true">›</span>
-        </button>
-        <button type="button" className="p-btn" style={{ justifyContent: 'space-between' }} onClick={() => navigate('/lesson')}>
-          Log a lesson <span aria-hidden="true">›</span>
-        </button>
-        <button type="button" className="p-btn" style={{ justifyContent: 'space-between' }} onClick={() => navigate('/library')}>
-          Browse the Library <span aria-hidden="true">›</span>
-        </button>
+      <div className="p-bigger-links">
+        <p style={{ fontWeight: 600 }}>From your phone you can</p>
+        <AppLink href="/" className="p-bigger-link p-bigger-link-primary">
+          See today's plan {chevron}
+        </AppLink>
+        <AppLink href="/sessions" className="p-bigger-link">
+          Log practice or a lesson {chevron}
+        </AppLink>
+        <AppLink href="/stats" className="p-bigger-link">
+          See your week {chevron}
+        </AppLink>
       </div>
-      <button type="button" className="p-btn p-btn-primary" onClick={() => void copy()}>
+      <button type="button" className="p-link p-bigger-copy" onClick={() => void copy()}>
         Copy the link to open on your laptop
       </button>
       {copied === 'yes' && <p className="p-banner p-banner-success">Link copied.</p>}

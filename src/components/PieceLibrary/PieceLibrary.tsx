@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { listAllAttempts } from '../../lib/db/attemptsRepo'
 import { createPiece, deletePiece, listPieces, type PieceSummary } from '../../lib/db/piecesRepo'
-import { listSessions } from '../../lib/db/sessionsRepo'
 import { parseScore } from '../../lib/path/scoreMeasures'
 import { parseMusicXmlMetadata } from '../../lib/musicxml/parseMetadata'
 import { isIOS } from '../../lib/platform'
 import { buildPieceStatsMap, formatDuration, formatPracticeDate, sortPiecesByRecency, type PieceStats } from '../../lib/pieceStats'
-import { computeStreak, type StreakSummary } from '../../lib/streak'
 import { ConfirmDialog } from '../ConfirmDialog/ConfirmDialog'
 
 /**
@@ -26,21 +24,14 @@ export function PieceLibrary({
 }) {
   const [pieces, setPieces] = useState<PieceSummary[]>([])
   const [statsByPieceId, setStatsByPieceId] = useState<Map<string, PieceStats>>(new Map())
-  const [streak, setStreak] = useState<StreakSummary | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
   const [pendingDelete, setPendingDelete] = useState<PieceSummary | undefined>(undefined)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const refresh = () =>
-    Promise.all([listPieces(), listAllAttempts(), listSessions()]).then(([loadedPieces, attempts, sessions]) => {
+    Promise.all([listPieces(), listAllAttempts()]).then(([loadedPieces, attempts]) => {
       setPieces(loadedPieces)
       setStatsByPieceId(buildPieceStatsMap(attempts))
-      // Sessions, not attempts: a session's `startedAt` also covers manual
-      // entries (practice away from the keyboard, a piece with no score
-      // uploaded) — see docs/sessions-plan.md. Reading the streak off
-      // attempts alone would keep breaking on exactly the days manual
-      // logging exists to cover.
-      setStreak(computeStreak(sessions.map((s) => ({ timestamp: s.startedAt }))))
     })
 
   useEffect(() => {
@@ -91,40 +82,35 @@ export function PieceLibrary({
   }
 
   return (
-    <div className="piece-library panel">
-      {streak && streak.lastPracticedDay !== undefined && (
-        <div className="streak-figure">
-          <span className="streak-number">{streak.current}</span>
-          <span className="streak-label">day{streak.current === 1 ? '' : 's'} current streak</span>
-          {streak.longest > streak.current && <span className="streak-best">Best streak: {streak.longest} days</span>}
-          {streak.current === 0 && (
-            <span className="streak-best">Last practiced {formatPracticeDate(streak.lastPracticedDay)} — get back to it!</span>
-          )}
-        </div>
-      )}
-      <h2>Your pieces</h2>
-      {pieces.length === 0 && <p>No pieces yet — upload a MusicXML file to get started.</p>}
-      <ul>
+    <section className="p-card p-collection" aria-label="All pieces">
+      <div className="p-collection-head" style={{ alignItems: 'center' }}>
+        <p className="p-muted" style={{ fontSize: 18 }}>
+          {pieces.length} piece{pieces.length === 1 ? '' : 's'}, {order === 'title' ? 'by title' : 'most recently practised first'}
+        </p>
+        <button type="button" className="p-btn p-btn-outline p-btn-outline-pine" onClick={() => fileInputRef.current?.click()}>
+          Add a piece
+        </button>
+      </div>
+      {pieces.length === 0 && <p>No pieces yet. Add a MusicXML file to get started.</p>}
+      <ul className="p-piece-list">
         {(order === 'title' ? [...pieces].sort((a, b) => a.title.localeCompare(b.title)) : sortPiecesByRecency(pieces, statsByPieceId)).map((piece) => {
           const stats = statsByPieceId.get(piece.id)
           return (
-            <li key={piece.id} className="piece-row">
-              <button type="button" className="piece-select" onClick={() => onOpen(piece.id)}>
-                <span className="piece-title">{piece.title}</span>
-                {piece.composer && <span className="piece-composer">{piece.composer}</span>}
-                {stats && (
-                  <span className="piece-meta">
-                    {formatDuration(stats.totalDurationMs)} practiced · first {formatPracticeDate(stats.firstPracticedAt)} · last{' '}
-                    {formatPracticeDate(stats.lastPracticedAt)}
-                  </span>
-                )}
+            <li key={piece.id} className="p-piece-row">
+              <button type="button" onClick={() => onOpen(piece.id)}>
+                <strong>{piece.title}</strong>
+                <span className="p-muted" style={{ fontSize: 16 }}>
+                  {[
+                    piece.composer,
+                    stats
+                      ? `${formatDuration(stats.totalDurationMs)} practised · last ${formatPracticeDate(stats.lastPracticedAt)}`
+                      : 'Not practised yet',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </span>
               </button>
-              <button
-                type="button"
-                className="piece-delete"
-                aria-label={`Delete ${piece.title}`}
-                onClick={() => setPendingDelete(piece)}
-              >
+              <button type="button" className="p-link" style={{ fontSize: 15, color: 'var(--muted)' }} aria-label={`Delete ${piece.title}`} onClick={() => setPendingDelete(piece)}>
                 Delete
               </button>
             </li>
@@ -133,7 +119,7 @@ export function PieceLibrary({
       </ul>
       <input
         ref={fileInputRef}
-        className="piece-upload"
+        hidden
         type="file"
         accept={accept}
         onChange={(e) => {
@@ -142,7 +128,7 @@ export function PieceLibrary({
           e.target.value = ''
         }}
       />
-      {error && <div className="banner banner-error">{error}</div>}
+      {error && <p className="p-error">{error}</p>}
 
       {pendingDelete && (
         <ConfirmDialog
@@ -151,6 +137,6 @@ export function PieceLibrary({
           onCancel={() => setPendingDelete(undefined)}
         />
       )}
-    </div>
+    </section>
   )
 }

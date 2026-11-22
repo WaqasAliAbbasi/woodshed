@@ -1,0 +1,251 @@
+/* Sessions (`Sessions` / `PhoneSessions` artboards). Shares path.css's tokens and type scale. */
+
+.s-btn-pine,
+a.s-btn-pine {
+  border: none;
+  background: var(--pine);
+  color: var(--accent-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.path a.s-btn-pine:hover,
+.s-btn-pine:not(:disabled):hover {
+  background: var(--pine);
+  color: var(--accent-text);
+  filter: brightness(1.12);
+}
+
+.s-this-week {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px;
+}
+
+.s-this-week-title {
+  font-family: var(--font-body) !important;
+  font-size: 20px;
+  font-weight: 600 !important;
+}
+
+.s-this-week .p-btn {
+  min-height: 56px;
+  font-size: 19px;
+}
+
+.s-week {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.s-week-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.s-week-title {
+  font-size: 26px;
+}
+
+.s-week-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  color: var(--muted);
+}
+
+.s-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.s-dots span {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--border-subtle);
+}
+
+.s-dots .s-dot-on {
+  background: var(--ready);
+}
+
+.s-card {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-subtle);
+  background: var(--paper);
+}
+
+/* A lesson reads apart from practice: sunk paper, a warmer edge, an amber kind label. */
+.s-card-lesson {
+  border-color: var(--accent-soft-bg);
+  border-left: 4px solid var(--accent-soft-bg);
+  background: var(--paper-sunk);
+}
+
+.s-card-when {
+  flex: none;
+  width: 92px;
+}
+
+.s-card-day {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.s-card-mins {
+  font-size: 15px;
+}
+
+.s-card-body {
+  flex: 1 1 240px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.s-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.s-card-head strong {
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.s-kind {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pine);
+}
+
+.s-kind-lesson {
+  color: var(--accent-soft-text);
+}
+
+.s-card-outcome {
+  font-size: 17px;
+  color: var(--text-soft);
+}
+
+.s-note,
+.s-note-add {
+  margin-top: 4px;
+  padding: 0 0 0 12px;
+  border: none;
+  border-left: 3px solid var(--border);
+  border-radius: 0;
+  background: none;
+  color: var(--text-soft);
+  font-size: 17px;
+  font-style: italic;
+  text-align: left;
+}
+
+.s-note-add {
+  border-left: none;
+  padding-left: 0;
+  font-style: normal;
+  font-size: 15px;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.s-note:not(:disabled):hover,
+.s-note-add:not(:disabled):hover {
+  background: none;
+  color: var(--text);
+}
+
+.s-note-edit {
+  width: 100%;
+  min-height: 72px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 17px;
+}
+
+.s-delete {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  padding: 2px 4px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.s-delete:not(:disabled):hover {
+  background: none;
+  color: var(--danger-text);
+}
+
+.s-gap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--line-strong);
+  background: transparent;
+  color: var(--muted);
+  font-size: 17px;
+  text-align: left;
+}
+
+.s-gap:not(:disabled):hover {
+  background: var(--paper-sunk);
+}
+
+.s-gap-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--line-strong);
+}
+
+@media (max-width: 699px) {
+  .s-card-when {
+    width: auto;
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+  }
+}
+
+.s-log-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}

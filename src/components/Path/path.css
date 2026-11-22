@@ -573,6 +573,10 @@ a.p-btn-primary {
   gap: 4px;
 }
 
+.p-strip-inner + .p-strip-inner {
+  margin-top: 22px;
+}
+
 .p-strip-row {
   display: flex;
 }
@@ -662,6 +666,11 @@ a.p-btn-primary {
   width: 4px;
   margin: 22px 0 10px;
   background: var(--text);
+}
+
+.p-strip-end-line {
+  width: 1px;
+  background: var(--touched);
 }
 
 .p-strip-repeat .p-strip-bar {
@@ -1317,21 +1326,89 @@ a.p-btn-primary {
 
 /* ---------- log a lesson ---------- */
 
+.p-lesson-when {
+  max-width: 560px;
+}
+
+.p-lesson-pieces {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.p-lesson-pieces > legend {
+  padding: 0;
+  margin-bottom: 10px;
+  font-size: 26px;
+}
+
+.p-lesson-rows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
 .p-lesson-row {
+  flex: 1 1 340px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 16px;
 }
 
+.p-lesson-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.p-lesson-remove {
+  align-self: flex-start;
+  min-height: 0;
+  padding: 0;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+/* "+ Add a piece": a dashed button that is really a select. */
 .p-add-piece {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   min-height: 52px;
   border-radius: var(--radius);
   border: 1px dashed var(--bar-quiet);
+  color: var(--pine);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.p-add-piece select {
+  border: none;
   background: transparent;
   color: var(--pine);
   font-size: 18px;
   font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+}
+
+.p-add-piece select:not(:disabled):hover {
+  background: transparent;
+}
+
+.p-lesson-save {
+  align-self: flex-start;
+  min-width: min(100%, 360px);
+  min-height: 64px;
+  font-size: 21px;
 }
 
 /* ---------- phones ---------- */
@@ -1366,4 +1443,105 @@ a.p-btn-primary {
   .p-collection-title {
     font-size: 28px;
   }
+}
+
+/* ---------- collection filter chips (Sessions, Stats) ---------- */
+
+.p-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.p-chips button {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--text);
+  font-size: 17px;
+}
+
+.p-chips button:not(:disabled):hover {
+  background: var(--paper);
+}
+
+.p-chips button[aria-pressed='true'] {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* ---------- session end ---------- */
+
+.p-win {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+  padding: 20px 24px;
+  border-radius: 14px;
+  border: 1px solid var(--ready);
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.p-win-miss {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+}
+
+.p-next-session {
+  gap: 18px !important;
+  padding: 24px;
+}
+
+/* ---------- the bigger-screen page (phones) ---------- */
+
+.p-bigger {
+  gap: 22px;
+  font-size: 18px;
+}
+
+.p-bigger-art {
+  color: var(--muted);
+}
+
+.p-bigger-title {
+  font-size: 34px;
+  line-height: 1.15 !important;
+}
+
+.p-bigger-links {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.path a.p-bigger-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 60px;
+  padding: 0 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: var(--paper);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.path a.p-bigger-link-primary {
+  border: none;
+  background: var(--pine);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.p-bigger-copy {
+  align-self: center;
+  font-weight: 600;
 }

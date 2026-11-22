@@ -4,7 +4,8 @@ import { BUDGET_CHOICES, buildDailyPlan, type PlanStep } from '../../lib/path/bu
 import { nextLessonDate, shortDate } from '../../lib/path/deriveState'
 import type { PiecePath } from '../../lib/path/nextStep'
 import { navigate } from '../../lib/router'
-import { finishHref, playHref, WEEKDAY_NAMES } from './links'
+import { finishHref, playHref, shortCollectionName, WEEKDAY_NAMES } from './links'
+import { ArrowIcon } from './icons'
 import { doneSteps, getBudget, setBudget as storeBudget } from './planProgress'
 import { usePathData } from './usePathData'
 import './path.css'
@@ -26,12 +27,20 @@ function StepRow({ step, index, state }: { step: PlanStep; index: number; state:
   return (
     <li className={`p-step${state === 'current' ? ' p-step-current' : state === 'done' ? ' p-step-done' : ''}`}>
       <span className="p-step-mark" aria-label={state === 'done' ? 'Done' : state === 'current' ? 'Up next' : undefined}>
-        {state === 'done' ? '✓' : state === 'pending' ? index + 1 : ''}
+        {state === 'done' ? (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M5 12.5l4.5 4.5L19 7.5" />
+          </svg>
+        ) : state === 'pending' ? (
+          index + 1
+        ) : (
+          ''
+        )}
       </span>
       <div className="p-step-body">
         <p className="p-step-title">
           <strong>{step.title}</strong>
-          <span className="p-small">{step.what}</span>
+          <span className="p-step-what">{step.what}</span>
         </p>
         <p className="p-step-why">{step.why}</p>
       </div>
@@ -64,6 +73,17 @@ export function TodayPlan() {
     ...derived.plan.pieces.filter((p) => p.inExam && (p.finished || p.path?.complete) && !plan.activePieceIds.includes(p.pieceId)).map((p) => p.pieceId),
   ]
 
+  /** "Book 2 · new", "Exam", "Lesson": where the piece lives, and New when the lesson just set it. */
+  const tagFor = (id: string) => {
+    const where = examIds.has(id) ? 'Exam' : bookOf(id)
+    const isNew = derived.plan.pieces.find((p) => p.pieceId === id)?.lesson?.outcome === 'new'
+    return [where ?? (isNew ? undefined : 'Lesson'), isNew ? 'new' : undefined].filter(Boolean).join(' · ').replace(/^new$/, 'New')
+  }
+  const bookOf = (id: string) => {
+    const c = overview.collections.find((x) => x.kind !== 'exam' && x.pieces.some((p) => p.pieceId === id))
+    return c ? shortCollectionName(c) : undefined
+  }
+
   const eyebrow = [
     `${plan.activePieceIds.length} piece${plan.activePieceIds.length === 1 ? '' : 's'}`,
     lessonDay !== undefined ? `lesson ${shortDate(lessonDay)}` : undefined,
@@ -80,16 +100,15 @@ export function TodayPlan() {
     <div className="path">
       <div className="p-split">
         <section className="p-main">
-          <div>
-            <p className="p-eyebrow">{eyebrow}</p>
-            <h1 className="p-h1">Today, about {plan.minutes || budget} minutes</h1>
-          </div>
-          <div className="p-actions">
-            <span className="p-muted p-small">Time today</span>
+          <div className="p-header">
+            <div>
+              <p className="p-eyebrow">{eyebrow}</p>
+              <h1 className="p-h1">Today, about {plan.minutes || budget} minutes</h1>
+            </div>
             <div className="p-segmented" role="group" aria-label="Minutes today">
               {BUDGET_CHOICES.map((m) => (
                 <button key={m} type="button" aria-pressed={budget === m} onClick={() => chooseBudget(m)}>
-                  {m}
+                  {m} min
                 </button>
               ))}
             </div>
@@ -119,10 +138,11 @@ export function TodayPlan() {
                   <StepRow key={step.key} step={step} index={i} state={done.has(step.key) ? 'done' : step === current ? 'current' : 'pending'} />
                 ))}
               </ol>
-              <div className="p-actions">
+              <div className="p-plan-foot">
                 {current ? (
                   <button type="button" className="p-btn p-btn-primary" onClick={() => navigate(playHref(current.target, current))}>
                     {current.kind === 'win' ? 'End on a win' : `${done.size > 0 ? 'Continue' : 'Start'}: ${current.title}, ${current.what}`}
+                    <ArrowIcon />
                   </button>
                 ) : (
                   <button type="button" className="p-btn p-btn-primary" onClick={() => navigate('/done')}>
@@ -138,13 +158,21 @@ export function TodayPlan() {
             </>
           )}
 
-          <LessonDayPicker weekday={overview.settings.lessonWeekday} onChange={() => void reload()} />
+          <div className="p-settings">
+            <LessonDayPicker weekday={overview.settings.lessonWeekday} onChange={() => void reload()} />
+          </div>
         </section>
 
         {asideIds.length > 0 && (
           <aside className="p-side p-card" aria-label="This week's pieces">
-            <h2 className="p-h2">This week's pieces</h2>
-            <p className="p-muted p-small">Chunks ready, per piece</p>
+            <div>
+              <h2 className="p-h2" style={{ fontSize: 26 }}>
+                This week's pieces
+              </h2>
+              <p className="p-muted" style={{ fontSize: 16, marginTop: 4 }}>
+                Chunks ready, per piece
+              </p>
+            </div>
             <ul className="p-pieces">
               {asideIds.map((id) => {
                 const input = derived.plan.pieces.find((p) => p.pieceId === id)!
@@ -158,12 +186,10 @@ export function TodayPlan() {
                       : `${path.readyChunkCount} of ${path.chunks.length} ready${focus ? ` · teacher: ${focus.focus}` : ''}`
                     : 'Not started yet'
                 return (
-                  <li key={id}>
+                  <li key={id} className={plan.activePieceIds.includes(id) ? undefined : 'p-piece-quiet'}>
                     <p className="p-step-title" style={{ justifyContent: 'space-between' }}>
-                      <strong className="p-small" style={{ fontSize: 18 }}>
-                        {titleById.get(id)}
-                      </strong>
-                      <span className="p-tag">{examIds.has(id) ? 'Exam' : input.lesson?.outcome === 'new' ? 'New' : 'Lesson'}</span>
+                      <strong style={{ fontSize: 18 }}>{titleById.get(id)}</strong>
+                      <span className={`p-tag${examIds.has(id) ? ' p-tag-exam' : ''}`}>{tagFor(id)}</span>
                     </p>
                     {path && <ChunkCells path={path} />}
                     <p className="p-muted" style={{ fontSize: 15 }}>
@@ -202,7 +228,7 @@ function EmptyPlan({ hasLessons }: { hasLessons: boolean }) {
 
 function LessonDayPicker({ weekday, onChange }: { weekday: number | undefined; onChange: () => void }) {
   return (
-    <label className="p-actions p-muted p-small">
+    <label>
       Lessons are on
       <select
         className="p-select"

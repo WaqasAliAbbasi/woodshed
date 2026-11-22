@@ -1,0 +1,185 @@
+/* Stats (`Stats` / `PhoneStats` artboards). Shares path.css's tokens and type scale. */
+
+.t-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: clamp(18px, 4vw, 28px);
+  border-radius: 14px;
+}
+
+.t-title {
+  font-size: clamp(24px, 5vw, 32px);
+  line-height: 1.2 !important;
+}
+
+.t-title-small {
+  font-size: 28px;
+  line-height: 1.2 !important;
+}
+
+.t-sub {
+  margin-top: 6px !important;
+  font-size: 18px;
+}
+
+.t-story {
+  font-size: 17px;
+  color: var(--text-soft);
+}
+
+.t-chart-scroll {
+  overflow-x: auto;
+}
+
+.t-chart {
+  min-width: 760px;
+  padding-top: 8px;
+}
+
+.t-chart-plot {
+  position: relative;
+}
+
+.t-goal {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 2px dashed var(--accent);
+}
+
+.t-goal-label {
+  position: absolute;
+  right: 0;
+  font-size: 14px;
+  color: var(--accent-soft-text);
+}
+
+.t-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 220px;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.t-bars li {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.t-bar-value {
+  font-size: 14px;
+  color: var(--text-soft);
+}
+
+.t-bar {
+  width: 100%;
+  border-radius: 5px 5px 0 0;
+  background: var(--border-subtle);
+}
+
+.t-bar-some {
+  background: var(--bar-quiet);
+}
+
+.t-bar-goal {
+  background: var(--ready);
+}
+
+.t-axis {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.t-axis span {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.t-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.t-tile {
+  flex: 1 1 200px;
+  padding: 20px 22px;
+}
+
+.t-tile-value {
+  font-family: var(--font-display);
+  font-size: 40px;
+  line-height: 1.1;
+  font-weight: 600;
+}
+
+.t-tile-label {
+  margin-top: 4px !important;
+  font-size: 17px;
+}
+
+.t-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.t-group-name {
+  margin-top: 8px !important;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.t-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.t-row-name {
+  flex: 0 1 200px;
+  min-width: 120px;
+  font-size: 17px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.t-row-bar {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.t-row-bar > span:first-child {
+  height: 18px;
+  border-radius: 4px;
+  background: var(--pine);
+}
+
+.t-row-min {
+  flex: none;
+  font-size: 16px;
+  color: var(--text-soft);
+}

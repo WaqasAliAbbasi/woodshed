@@ -1,21 +1,61 @@
-import { useEffect, useState } from 'react'
-import type { PieceSummary } from '../../lib/db/piecesRepo'
-import { listPieces } from '../../lib/db/piecesRepo'
-import { createManualSession, deleteSession, listSessions, updateSession } from '../../lib/db/sessionsRepo'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { PracticeSession } from '../../lib/db/db'
-import { formatDuration } from '../../lib/pieceStats'
+import type { Collection, Lesson, PathOverview } from '../../lib/db/pathRepo'
+import { createManualSession, deleteSession, listSessions, updateSession } from '../../lib/db/sessionsRepo'
+import { collapseEmptyWeeks, formatMinutes, groupByLessonWeek, isGap, type LessonWeek } from '../../lib/lessonWeeks'
+import { nextLessonDate, shortDate, type DerivedState } from '../../lib/path/deriveState'
+import { describeStep, piecePath } from '../../lib/path/nextStep'
+import { practiceDayKey } from '../../lib/streak'
+import { AppLink } from '../AppShell/AppShell'
+import { CollectionFilter } from '../Collections/CollectionFilter'
+import { shortCollectionName } from '../Path/links'
 import { ConfirmDialog } from '../ConfirmDialog/ConfirmDialog'
-import { formatDayHeader, groupByPracticeDay } from './groupByPracticeDay'
+import { usePathData } from '../Path/usePathData'
 import { ManualSessionForm } from './ManualSessionForm'
+import { filterByPieces, isLessonSession, piecesOf } from './sessionKinds'
+import '../Path/path.css'
+import './sessions.css'
 
-function formatTimeRange(startedAt: number, endedAt: number): string {
-  const opts: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' }
-  const start = new Date(startedAt).toLocaleTimeString(undefined, opts)
-  const end = new Date(endedAt).toLocaleTimeString(undefined, opts)
-  return `${start} – ${end}`
+const OUTCOME_WORD = { finished: 'marked done', continue: 'keep going', new: 'new' } as const
+
+/** "Sat 14". */
+function dayLabel(ms: number): string {
+  return shortDate(ms).split(' ').slice(0, 2).join(' ')
 }
 
-/** Click-to-edit note, styled like `App.tsx`'s `RenamableTitle` — draft-until-committed, Enter/blur saves, Escape cancels. Shown for both derived and manual sessions: adding a note in retrospect is the whole reason a derived session is a stored row at all (see docs/sessions-plan.md). */
+/** What a practice session moved on the path: chunks that became ready, joins passed — else what it was working on. */
+function pathOutcome(s: PracticeSession, overview: PathOverview, derived: DerivedState): string | undefined {
+  const attempts = overview.attempts.filter((a) => a.sessionId === s.id)
+  if (attempts.length === 0) return undefined
+  const parts: string[] = []
+  for (const pieceId of [...new Set(attempts.map((a) => a.pieceId))]) {
+    const chunks = overview.chunks.filter((c) => c.pieceId === pieceId)
+    if (chunks.length === 0) continue
+    const input = {
+      chunks,
+      sections: overview.sections.filter((x) => x.pieceId === pieceId),
+      targetTempoBpm: derived.targets.get(pieceId) ?? 80,
+    }
+    const all = overview.attempts.filter((a) => a.pieceId === pieceId)
+    const before = piecePath({ ...input, attempts: all.filter((a) => a.timestamp < s.startedAt), now: s.startedAt })
+    const after = piecePath({ ...input, attempts: all.filter((a) => a.timestamp <= s.endedAt), now: s.endedAt })
+    const readied = after.chunks.filter((c, i) => c.repeatOf === undefined && c.progress.ready && !before.chunks[i].progress.ready)
+    const joined = after.joins.filter((j, i) => j.passed && !before.joins[i]?.passed)
+    const moved = [
+      ...readied.map((c) => `m. ${c.chunk.startMeasure}–${c.chunk.endMeasure}`),
+      ...joined.map((j) => (j.whole ? 'the whole piece' : `m. ${j.startMeasure}–${j.endMeasure} joined`)),
+    ]
+    const tries = attempts.filter((a) => a.pieceId === pieceId).length
+    parts.push(
+      moved.length > 0
+        ? `Ready: ${moved.join(', ')}`
+        : `${tries} tr${tries === 1 ? 'y' : 'ies'}${after.next.kind !== 'complete' ? ` · working on ${describeStep(after.next)}` : ''}`,
+    )
+  }
+  return parts.join(' · ') || undefined
+}
+
+/** Click-to-edit note — draft until committed, Enter with Cmd/Ctrl or blur saves, Escape cancels. On derived sessions too: a note in retrospect is why sessions are stored rows. */
 function EditableNote({ session, onSaved }: { session: PracticeSession; onSaved: (updated: PracticeSession) => void }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(session.note ?? '')
@@ -29,8 +69,7 @@ function EditableNote({ session, onSaved }: { session: PracticeSession; onSaved:
     }
     setSaving(true)
     try {
-      const updated = await updateSession(session.id, { note: trimmed || null })
-      onSaved(updated)
+      onSaved(await updateSession(session.id, { note: trimmed || null }))
     } finally {
       setSaving(false)
       setEditing(false)
@@ -40,7 +79,7 @@ function EditableNote({ session, onSaved }: { session: PracticeSession; onSaved:
   if (editing) {
     return (
       <textarea
-        className="session-note-edit"
+        className="s-note-edit"
         autoFocus
         value={draft}
         disabled={saving}
@@ -52,7 +91,6 @@ function EditableNote({ session, onSaved }: { session: PracticeSession; onSaved:
             setDraft(session.note ?? '')
             setEditing(false)
           }
-          // Enter alone would block writing a multi-line note — Cmd/Ctrl+Enter commits instead.
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
             e.preventDefault()
             e.currentTarget.blur()
@@ -61,11 +99,10 @@ function EditableNote({ session, onSaved }: { session: PracticeSession; onSaved:
       />
     )
   }
-
   return (
     <button
       type="button"
-      className={`session-note${session.note ? '' : ' session-note-empty'}`}
+      className={session.note ? 's-note' : 's-note-add'}
       onClick={() => {
         setDraft(session.note ?? '')
         setEditing(true)
@@ -76,139 +113,232 @@ function EditableNote({ session, onSaved }: { session: PracticeSession; onSaved:
   )
 }
 
-function SessionRow({
-  session,
-  pieceTitleById,
-  onNoteSaved,
-  onDeleteRequested,
-}: {
-  session: PracticeSession
-  pieceTitleById: Map<string, string>
-  onNoteSaved: (updated: PracticeSession) => void
-  onDeleteRequested: (session: PracticeSession) => void
-}) {
-  const pieces = session.pieceIds.map((id) => pieceTitleById.get(id) ?? id)
+interface CardContext {
+  overview: PathOverview
+  derived: DerivedState
+  lessons: Map<string, Lesson>
+  titles: Map<string, string>
+  onNoteSaved: (s: PracticeSession) => void
+  onDelete: (s: PracticeSession) => void
+}
+
+function collectionTags(pieceIds: string[], collections: Collection[]): string[] {
+  return [...new Set(collections.filter((c) => c.pieces.some((p) => pieceIds.includes(p.pieceId))).map(shortCollectionName))]
+}
+
+function SessionCard({ session, ctx }: { session: PracticeSession; ctx: CardContext }) {
+  const lesson = ctx.lessons.get(session.id)
+  const isLesson = isLessonSession(session, ctx.lessons)
+  const pieceIds = piecesOf(session, ctx.lessons)
+  const titles = pieceIds.map((id) => ctx.titles.get(id) ?? 'Deleted piece')
+  const title = titles.length > 0 ? titles.join(', ') : session.label || (isLesson ? 'Lesson' : 'Practice')
+  const outcome = lesson
+    ? lesson.pieces.map((p) => `${ctx.titles.get(p.pieceId) ?? 'Deleted piece'}: ${OUTCOME_WORD[p.outcome]}${p.focus ? `, ${p.focus}` : ''}`).join(' · ')
+    : session.source === 'derived'
+      ? pathOutcome(session, ctx.overview, ctx.derived)
+      : session.label && titles.length > 0 && !isLesson
+        ? session.label
+        : undefined
+  const minutes = (session.endedAt - session.startedAt) / 60_000
+
   return (
-    <li className="session-row">
-      <div className="session-row-main">
-        <span className="session-time">{formatTimeRange(session.startedAt, session.endedAt)}</span>
-        <span className="session-duration">{formatDuration(session.endedAt - session.startedAt)}</span>
-        {session.source === 'manual' ? (
-          <span className="session-label">{session.label || 'Practice'}</span>
-        ) : (
-          <span className="session-label">
-            {pieces.length > 0 ? pieces.join(', ') : 'Practice'}
-            {session.attemptCount > 0 && (
-              <span className="session-attempt-count">
-                {' '}
-                · {session.attemptCount} attempt{session.attemptCount === 1 ? '' : 's'}
-              </span>
-            )}
-          </span>
-        )}
-        {session.source === 'manual' && (
-          <button type="button" className="session-delete" aria-label="Delete logged session" onClick={() => onDeleteRequested(session)}>
-            Delete
-          </button>
-        )}
+    <article className={`s-card${isLesson ? ' s-card-lesson' : ''}`}>
+      <div className="s-card-when">
+        <p className="s-card-day">{dayLabel(practiceDayKey(session.startedAt))}</p>
+        <p className="p-muted s-card-mins">{formatMinutes(minutes)}</p>
       </div>
-      <EditableNote session={session} onSaved={onNoteSaved} />
-    </li>
+      <div className="s-card-body">
+        <p className="s-card-head">
+          <span className={`s-kind${isLesson ? ' s-kind-lesson' : ''}`}>{isLesson ? 'Lesson' : 'Practice'}</span>
+          <strong>{title}</strong>
+          {collectionTags(pieceIds, ctx.overview.collections).map((t) => (
+            <span key={t} className="p-tag">
+              {t}
+            </span>
+          ))}
+        </p>
+        {outcome && <p className="s-card-outcome">{outcome}</p>}
+        <EditableNote session={session} onSaved={ctx.onNoteSaved} />
+      </div>
+      {session.source === 'manual' && (
+        <button type="button" className="s-delete" aria-label="Delete logged session" onClick={() => ctx.onDelete(session)}>
+          Delete
+        </button>
+      )}
+    </article>
+  )
+}
+
+function WeekDots({ days }: { days: boolean[] }) {
+  return (
+    <span className="s-dots" aria-label={`${days.filter(Boolean).length} of 7 days practised`}>
+      {days.map((on, i) => (
+        <span key={i} className={on ? 's-dot-on' : undefined} />
+      ))}
+    </span>
+  )
+}
+
+function weekSummary(w: LessonWeek<PracticeSession>): string {
+  if (w.practiceDays > 0) return `${w.practiceDays} day${w.practiceDays === 1 ? '' : 's'} · ${formatMinutes(w.practiceMinutes)}`
+  return w.lessons.length > 0 ? 'no practice' : 'no practice, no lesson logged'
+}
+
+function WeekSection({ week, ctx, lessonDaySet }: { week: LessonWeek<PracticeSession>; ctx: CardContext; lessonDaySet: boolean }) {
+  const label = `Week to ${week.lessons.length > 0 && lessonDaySet ? 'lesson ' : ''}${shortDate(week.end)}`
+  const items = [...week.lessons, ...week.practice].sort((a, b) => b.startedAt - a.startedAt)
+  return (
+    <section className="s-week" aria-label={label}>
+      <div className="s-week-head">
+        <h2 className="s-week-title">{label}</h2>
+        <p className="s-week-summary">
+          <WeekDots days={week.days} />
+          {weekSummary(week)}
+        </p>
+      </div>
+      {week.onlyOnLessonDay && <p className="p-banner">The only practice this week was on the day of the lesson.</p>}
+      {items.map((s) => (
+        <SessionCard key={s.id} session={s} ctx={ctx} />
+      ))}
+    </section>
   )
 }
 
 /**
- * Sessions view — derived (clustered from recorded attempts) and manual
- * (logged by hand, for practice Woodshed didn't witness) sessions in one
- * reverse-chronological list, grouped by the same 4am-boundary practice day
- * the streak uses. See docs/sessions-plan.md for why sessions are stored
- * rows rather than computed on read — it's what lets a note survive being
- * added after the fact.
+ * Sessions (`Sessions` / `PhoneSessions` artboards): history grouped into the
+ * week before each lesson, each with its seven day-dots and a summary;
+ * lesson cards set apart from practice; runs of empty weeks folded into one
+ * line. Derived sessions (from attempts) and manual ones (logged by hand)
+ * are both here — see docs/sessions-plan.md.
  */
 export function SessionsView() {
+  const { overview, derived, error: pathError } = usePathData()
   const [sessions, setSessions] = useState<PracticeSession[] | undefined>(undefined)
-  const [pieces, setPieces] = useState<PieceSummary[]>([])
-  const [showManualForm, setShowManualForm] = useState(false)
+  const [filter, setFilter] = useState<string | undefined>(undefined)
+  const [showForm, setShowForm] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<PracticeSession | undefined>(undefined)
+  const [openGaps, setOpenGaps] = useState<Set<number>>(new Set())
   const [error, setError] = useState<string | undefined>(undefined)
+  const [now] = useState(() => Date.now())
 
-  const refresh = () =>
-    Promise.all([listSessions(), listPieces()]).then(([loadedSessions, loadedPieces]) => {
-      setSessions(loadedSessions)
-      setPieces(loadedPieces)
-    })
-
+  const refresh = useCallback(() => listSessions().then(setSessions), [])
   useEffect(() => {
     void refresh()
-  }, [])
+  }, [refresh])
 
-  const pieceTitleById = new Map(pieces.map((p) => [p.id, p.title]))
+  const lessons = useMemo(() => new Map((overview?.lessons ?? []).map((l) => [l.sessionId, l])), [overview])
+  const weekday = overview?.settings.lessonWeekday
 
-  const handleNoteSaved = (updated: PracticeSession) => {
-    setSessions((current) => current?.map((s) => (s.id === updated.id ? updated : s)))
+  const weeks = useMemo(() => {
+    if (!sessions) return undefined
+    const members = filter ? new Set(overview?.collections.find((c) => c.id === filter)?.pieces.map((p) => p.pieceId)) : undefined
+    const shown = filterByPieces(sessions, lessons, members)
+    return groupByLessonWeek(shown, (s) => isLessonSession(s, lessons), weekday, now)
+  }, [sessions, filter, overview, lessons, weekday, now])
+
+  if (pathError) return <div className="path"><p className="p-error">{pathError}</p></div>
+  if (!overview || !derived || !weeks) return <div className="path"><p className="p-muted">Loading sessions…</p></div>
+
+  const ctx: CardContext = {
+    overview,
+    derived,
+    lessons,
+    titles: new Map(overview.pieces.map((p) => [p.id, p.title])),
+    onNoteSaved: (updated) => setSessions((cur) => cur?.map((s) => (s.id === updated.id ? updated : s))),
+    onDelete: setPendingDelete,
   }
 
-  const handleManualCreate = async (input: { startedAt: number; endedAt: number; label?: string; pieceId?: string; note?: string }) => {
-    setError(undefined)
-    try {
-      await createManualSession(input)
-      setShowManualForm(false)
-      await refresh()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
+  const [current, ...past] = weeks
+  const lessonDay = nextLessonDate(now, weekday)
+  const daysLeft = lessonDay !== undefined ? Math.round((lessonDay - practiceDayKey(now)) / 86_400_000) : undefined
+  const currentSummary =
+    current.practiceDays > 0
+      ? `${current.practiceDays} day${current.practiceDays === 1 ? '' : 's'} · ${formatMinutes(current.practiceMinutes)} so far`
+      : 'No practice yet'
+  const toGo =
+    daysLeft === undefined ? undefined : daysLeft === 0 ? 'lesson today' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} before the lesson`
 
   const handleDelete = async (session: PracticeSession) => {
     setPendingDelete(undefined)
     setError(undefined)
     try {
       await deleteSession(session.id)
-      setSessions((current) => current?.filter((s) => s.id !== session.id))
+      setSessions((cur) => cur?.filter((s) => s.id !== session.id))
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
   }
 
-  const groups = groupByPracticeDay(sessions ?? [])
-
   return (
-    <div className="sessions-view panel">
-      <div className="sessions-view-header">
-        <h2>Practice sessions</h2>
-        <button type="button" className="link-back" onClick={() => setShowManualForm(true)}>
-          + Log past practice
-        </button>
+    <div className="path">
+      <div className="p-header">
+        <div>
+          <h1 className="p-h1">Sessions</h1>
+          <p className="p-muted" style={{ marginTop: 6 }}>
+            {weekday !== undefined ? 'Grouped by the week before each lesson' : 'Grouped by week'}
+          </p>
+        </div>
+        <div className="p-actions">
+          <button type="button" className="p-btn p-btn-small" onClick={() => setShowForm(true)}>
+            Log practice
+          </button>
+          <AppLink href="/lesson" className="p-btn p-btn-small s-btn-pine">
+            Log lesson
+          </AppLink>
+        </div>
       </div>
 
-      {error && <div className="banner banner-error">{error}</div>}
+      <CollectionFilter collections={overview.collections} value={filter} onChange={setFilter} />
+      {error && <p className="p-error">{error}</p>}
 
-      {showManualForm && (
-        <ManualSessionForm pieces={pieces} onCancel={() => setShowManualForm(false)} onSubmit={(input) => void handleManualCreate(input)} />
+      {showForm && (
+        <section className="p-card">
+          <ManualSessionForm
+            pieces={overview.pieces}
+            onCancel={() => setShowForm(false)}
+            onSubmit={(input) => {
+              setError(undefined)
+              void createManualSession(input)
+                .then(() => {
+                  setShowForm(false)
+                  return refresh()
+                })
+                .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+            }}
+          />
+        </section>
       )}
 
-      {sessions === undefined ? null : sessions.length === 0 ? (
-        <p className="history-empty">No practice sessions yet — they'll appear here as you practice, or log one by hand.</p>
-      ) : (
-        <div className="session-day-groups">
-          {groups.map((group) => (
-            <div key={group.dayKey} className="session-day-group">
-              <h3 className="session-day-header">{formatDayHeader(group.dayKey)}</h3>
-              <ul className="session-list">
-                {group.sessions.map((session) => (
-                  <SessionRow
-                    key={session.id}
-                    session={session}
-                    pieceTitleById={pieceTitleById}
-                    onNoteSaved={handleNoteSaved}
-                    onDeleteRequested={setPendingDelete}
-                  />
-                ))}
-              </ul>
-            </div>
-          ))}
+      <section className="p-card p-card-accent s-this-week" aria-label="This week">
+        <div>
+          <h2 className="s-this-week-title">This week{lessonDay !== undefined ? ` · lesson ${shortDate(lessonDay)}` : ''}</h2>
+          <p className="p-muted p-small">{[currentSummary, toGo].filter(Boolean).join(' · ')}</p>
         </div>
-      )}
+        <AppLink href="/" className="p-btn s-btn-pine">
+          Start today's plan
+        </AppLink>
+      </section>
+      {[...current.lessons, ...current.practice]
+        .sort((a, b) => b.startedAt - a.startedAt)
+        .map((s) => (
+          <SessionCard key={s.id} session={s} ctx={ctx} />
+        ))}
+
+      {collapseEmptyWeeks(past).map((entry) => {
+        if (!isGap(entry)) return <WeekSection key={entry.end} week={entry} ctx={ctx} lessonDaySet={weekday !== undefined} />
+        if (openGaps.has(entry.end)) {
+          return entry.weeks.map((w) => <WeekSection key={w.end} week={w} ctx={ctx} lessonDaySet={weekday !== undefined} />)
+        }
+        return (
+          <button key={entry.end} type="button" className="s-gap" onClick={() => setOpenGaps((g) => new Set(g).add(entry.end))}>
+            <span className="s-gap-dot" aria-hidden="true" />
+            {entry.weeks.length} weeks with no home practice ({shortDate(entry.start).slice(4)} – {shortDate(entry.end).slice(4)})
+            {entry.lessonCount > 0 ? ` · ${entry.lessonCount} lesson${entry.lessonCount === 1 ? '' : 's'} logged` : ''}
+          </button>
+        )
+      })}
+
+      {sessions && sessions.length === 0 && <p className="p-muted">No sessions yet. They appear here as you practise, or log one by hand.</p>}
 
       {pendingDelete && (
         <ConfirmDialog

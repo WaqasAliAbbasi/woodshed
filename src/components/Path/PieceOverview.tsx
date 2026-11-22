@@ -1,17 +1,10 @@
 import { describeStep, RUNG_NAME, type ChunkState, type PiecePath } from '../../lib/path/nextStep'
 import { navigate } from '../../lib/router'
 import { AppLink } from '../AppShell/AppShell'
+import { ArrowIcon, LockIcon } from './icons'
 import { freePracticeHref } from './links'
 import { usePiecePath } from './usePiecePath'
 import './path.css'
-
-export function ArrowIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M5 12h14M13 6l6 6-6 6" />
-    </svg>
-  )
-}
 
 /** Where a chunk stands, in a word or two: "ready", "metronome", "not started". */
 function chunkStatus(c: ChunkState): string {
@@ -30,30 +23,50 @@ function chunkStatus(c: ChunkState): string {
  * `joinedThrough` brackets the bars a passed join covers.
  */
 export function ChunkStrip({ path, status = false, joinedThrough }: { path: PiecePath; status?: boolean; joinedThrough?: number }) {
-  const first = path.chunks[0]?.chunk.startMeasure ?? 0
-  const last = path.chunks.at(-1)?.chunk.endMeasure ?? first
-  const total = last - first + 1
-  const joined = joinedThrough !== undefined ? joinedThrough - first + 1 : 0
+  const rows = stripRows(path.chunks)
+  const width = Math.max(...rows.map((r) => r.bars))
   return (
     <section className="p-card p-strip" aria-label="Score split into chunks">
-      <div className="p-strip-inner">
-        <div className="p-strip-row">
-          {path.chunks.map((c, i) => (
-            <StripChunk key={c.chunk.id} c={c} status={status} last={i === path.chunks.length - 1} />
-          ))}
-        </div>
-        {joined > 0 && (
-          <div className="p-strip-row" aria-hidden="true">
-            <div className="p-strip-bracket" style={{ flex: `${joined} 1 0` }} />
-            {total > joined && <div style={{ flex: `${total - joined} 1 0` }} />}
+      {rows.map((row, r) => {
+        const joined = joinedThrough === undefined ? 0 : Math.max(0, Math.min(row.bars, joinedThrough - row.start + 1))
+        return (
+          <div key={row.start} className="p-strip-inner">
+            <div className="p-strip-row">
+              {row.chunks.map((c, i) => (
+                <StripChunk key={c.chunk.id} c={c} status={status} end={i === row.chunks.length - 1 ? (r === rows.length - 1 ? 'final' : 'line') : undefined} />
+              ))}
+              {width > row.bars && <div style={{ flex: `${width - row.bars} 1 0` }} />}
+            </div>
+            {joined > 0 && (
+              <div className="p-strip-row" aria-hidden="true">
+                <div className="p-strip-bracket" style={{ flex: `${joined} 1 0` }} />
+                <div style={{ flex: `${width - joined} 1 0` }} />
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        )
+      })}
     </section>
   )
 }
 
-function StripChunk({ c, status, last }: { c: ChunkState; status: boolean; last: boolean }) {
+/** Up to 20 bars on one line; longer pieces wrap into lines of about 16 bars, breaking between chunks (`OverviewRepeats` artboard). */
+function stripRows(chunks: ChunkState[]): { start: number; bars: number; chunks: ChunkState[] }[] {
+  const barsOf = (c: ChunkState) => c.chunk.endMeasure - c.chunk.startMeasure + 1
+  const total = chunks.reduce((n, c) => n + barsOf(c), 0)
+  const limit = total <= 20 ? total : 16
+  const rows: { start: number; bars: number; chunks: ChunkState[] }[] = []
+  for (const c of chunks) {
+    const row = rows.at(-1)
+    if (row && row.bars + barsOf(c) <= limit) {
+      row.chunks.push(c)
+      row.bars += barsOf(c)
+    } else rows.push({ start: c.chunk.startMeasure, bars: barsOf(c), chunks: [c] })
+  }
+  return rows
+}
+
+function StripChunk({ c, status, end }: { c: ChunkState; status: boolean; end?: 'line' | 'final' }) {
   const bars = c.chunk.endMeasure - c.chunk.startMeasure + 1
   const repeat = c.repeatOf !== undefined
   const ready = c.progress.ready
@@ -75,18 +88,9 @@ function StripChunk({ c, status, last }: { c: ChunkState; status: boolean; last:
             <i />
           </div>
         ))}
-        {last && <div className="p-strip-end" />}
+        {end && <div className={end === 'final' ? 'p-strip-end' : 'p-strip-end p-strip-end-line'} />}
       </div>
     </div>
-  )
-}
-
-function LockIcon() {
-  return (
-    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}>
-      <rect x="5" y="11" width="14" height="10" rx="2" />
-      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-    </svg>
   )
 }
 

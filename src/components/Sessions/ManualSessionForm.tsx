@@ -60,17 +60,18 @@ export function ManualSessionForm({
   }
 
   return (
-    <form className="manual-session-form" onSubmit={handleSubmit}>
-      <div className="manual-session-form-row">
-        <label>
+    <form className="s-log-form" onSubmit={handleSubmit}>
+      <h2 className="p-h2">Log practice</h2>
+      <div className="p-row">
+        <label className="p-field">
           Date
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </label>
-        <label>
+        <label className="p-field">
           Start time
           <input type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
         </label>
-        <label>
+        <label className="p-field">
           Minutes
           <input
             type="number"
@@ -82,8 +83,8 @@ export function ManualSessionForm({
           />
         </label>
       </div>
-      <div className="manual-session-form-row">
-        <label>
+      <div className="p-row">
+        <label className="p-field">
           What was it?
           <input
             type="text"
@@ -92,7 +93,7 @@ export function ManualSessionForm({
             placeholder="Scales, lesson, sight-reading…"
           />
         </label>
-        <label>
+        <label className="p-field">
           Piece (optional)
           <select value={pieceId} onChange={(e) => setPieceId(e.target.value)}>
             <option value="">None</option>
@@ -104,16 +105,16 @@ export function ManualSessionForm({
           </select>
         </label>
       </div>
-      <label className="manual-session-form-note">
+      <label className="p-field">
         Note (optional)
         <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="How did it go?" />
       </label>
-      {validationError && <div className="banner banner-error">{validationError}</div>}
-      <div className="manual-session-form-actions">
-        <button type="button" className="confirm-dialog-cancel" onClick={onCancel}>
+      {validationError && <p className="p-error">{validationError}</p>}
+      <div className="p-actions">
+        <button type="button" className="p-btn p-btn-small" onClick={onCancel}>
           Cancel
         </button>
-        <button type="submit" className="confirm-dialog-confirm">
+        <button type="submit" className="p-btn p-btn-small s-btn-pine">
           Log it
         </button>
       </div>

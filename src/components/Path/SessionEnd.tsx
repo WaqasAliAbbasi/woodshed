@@ -8,6 +8,7 @@ import { isReadyAttempt, startOfDay } from '../../lib/path/rungProgress'
 import { navigate } from '../../lib/router'
 import { getBudget } from './planProgress'
 import { usePathData } from './usePathData'
+import { CheckMark } from './icons'
 import './path.css'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -96,15 +97,15 @@ export function SessionEnd() {
           </div>
 
           {win && winSection && (
-            <div className={`p-card ${wonIt ? 'p-banner-success' : ''}`} style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span className={`p-result-mark${wonIt ? '' : ' p-result-mark-miss'}`} style={{ width: 52, height: 52, fontSize: 28 }} aria-hidden="true">
-                {wonIt ? '✓' : '·'}
+            <div className={wonIt ? 'p-win' : 'p-card p-win-miss'}>
+              <span className={`p-result-mark${wonIt ? '' : ' p-result-mark-miss'}`} style={{ width: 52, height: 52 }} aria-hidden="true">
+                {wonIt ? <CheckMark size={28} /> : <span className="p-result-dot" />}
               </span>
               <div style={{ flex: '1 1 240px' }}>
                 <p style={{ fontWeight: 600 }}>
                   {titles.get(win.pieceId)} · {winSection.label.replace(' · Review', '')} at {win.tempoBpm} bpm
                 </p>
-                <p className="p-small">
+                <p style={{ fontSize: 17 }}>
                   Measures {winSection.startMeasure}–{winSection.endMeasure}, pitch {Math.round(win.aggregate.pitchAccuracy * 100)}%, rhythm{' '}
                   {Math.round(timingQuality(win.aggregate) * 100)}%
                 </p>
@@ -112,12 +113,14 @@ export function SessionEnd() {
             </div>
           )}
 
+          {lines.length === 0 && !win && <p className="p-muted">Nothing played on the path today yet. Tomorrow's plan is ready when you are.</p>}
+
           {lines.length > 0 && (
             <div>
-              <h2 className="p-h2" style={{ marginBottom: 12 }}>
+              <h2 className="p-h2" style={{ marginBottom: 12, fontSize: 26 }}>
                 Today
               </h2>
-              <ul className="p-steps" style={{ gap: 8 }}>
+              <ul className="p-steps" style={{ gap: 10 }}>
                 {lines.map((line, i) => (
                   <li key={i} style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', fontSize: 19 }}>
                     <span style={{ flex: '0 0 120px', fontWeight: 600, color: line.good ? 'var(--success-text)' : 'var(--accent-soft-text)' }}>{line.tag}</span>
@@ -139,11 +142,13 @@ export function SessionEnd() {
           )}
         </section>
 
-        <aside className="p-side p-card" aria-label="Next time">
-          <p className="p-eyebrow">Next session</p>
-          <p className="p-h2" style={{ fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-            Tomorrow, about {tomorrow.minutes || getBudget()} minutes
-          </p>
+        <aside className="p-side p-card p-next-session" aria-label="Next time">
+          <div>
+            <p className="p-eyebrow" style={{ marginBottom: 4 }}>
+              Next session
+            </p>
+            <p className="p-h2">Tomorrow, about {tomorrow.minutes || getBudget()} minutes</p>
+          </div>
           {tomorrow.steps.length > 0 ? (
             <ol style={{ margin: 0, paddingLeft: 22, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 18 }}>
               {tomorrow.steps.map((s) => (
@@ -156,7 +161,7 @@ export function SessionEnd() {
             <p className="p-muted">Nothing assigned yet — log your next lesson.</p>
           )}
           {lessonDay !== undefined && <p className="p-banner">Next lesson {shortDate(lessonDay)}</p>}
-          <button type="button" className="p-btn p-btn-primary" disabled={saving} onClick={() => void finish()}>
+          <button type="button" className="p-btn p-btn-primary" style={{ minHeight: 72, fontSize: 22 }} disabled={saving} onClick={() => void finish()}>
             Save and finish
           </button>
         </aside>

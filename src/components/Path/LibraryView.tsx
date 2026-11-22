@@ -15,6 +15,7 @@ import { readBookFolder, targetFromMetadata } from '../../lib/path/folderImport'
 import { parseScore } from '../../lib/path/scoreMeasures'
 import { navigate } from '../../lib/router'
 import { PieceLibrary } from '../PieceLibrary/PieceLibrary'
+import { AppLink } from '../AppShell/AppShell'
 import { overviewHref } from './links'
 import { ChunkCells } from './TodayPlan'
 import { usePathData } from './usePathData'
@@ -92,24 +93,26 @@ function Collections({ overview, derived, reload }: { overview: PathOverview; de
           <SetCard key={c.id} collection={c} overview={overview} derived={derived} reload={reload} />
         ),
       )}
-      <section className="p-card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <h2 className="p-h2">Not in a collection</h2>
-        {loose.length === 0 ? (
-          <p className="p-muted">Every piece is in a collection.</p>
-        ) : (
-          <ul className="p-piece-list">
-            {loose.map((p) => (
-              <li key={p.id} className="p-piece-row">
-                <button type="button" onClick={() => navigate(overviewHref(p.id))}>
-                  <strong>{p.title}</strong>
-                  <span className="p-muted p-small">{sizeLine(p, overview) || p.composer}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <NewCollection reload={reload} />
-        <ImportBook overview={overview} reload={reload} />
+      <section className="p-loose" aria-labelledby="loose-title">
+        <div className="p-collection-head" style={{ alignItems: 'center' }}>
+          <div>
+            <h2 id="loose-title" className="p-h2" style={{ fontSize: 24 }}>
+              Not in a collection
+            </h2>
+            <p className="p-muted p-small" style={{ marginTop: 2 }}>
+              {loose.length === 0
+                ? 'Every piece is in a collection.'
+                : loose.map((p, i) => (
+                    <span key={p.id}>
+                      {i > 0 && ' · '}
+                      <AppLink href={overviewHref(p.id)}>{p.title}</AppLink>
+                    </span>
+                  ))}
+            </p>
+          </div>
+          <NewCollection reload={reload} />
+        </div>
+        <ImportBook overview={overview} reload={reload} label="Import a book folder" />
       </section>
     </>
   )
@@ -120,7 +123,7 @@ function AddPiece({ collection, overview, reload }: { collection: Collection; ov
   const addable = overview.pieces.filter((p) => !members.has(p.id)).sort((a, b) => a.title.localeCompare(b.title))
   if (addable.length === 0) return null
   return (
-    <label className="p-actions p-muted p-small">
+    <label className="p-actions p-muted" style={{ fontSize: 16 }}>
       Add a piece
       <select
         className="p-select"
@@ -146,29 +149,21 @@ function SetCard({ collection, overview, derived, reload }: { collection: Collec
   const pieces = collection.pieces.map((m) => byId.get(m.pieceId)).filter((p): p is PieceSummary => p !== undefined)
   const date = collection.examDate !== undefined ? new Date(collection.examDate).toISOString().slice(0, 10) : ''
   return (
-    <section className="p-card" aria-label={collection.name} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div className="p-header" style={{ alignItems: 'flex-start' }}>
+    <section className="p-card p-collection" aria-label={collection.name}>
+      <div className="p-collection-head">
         <div>
-          <p className="p-eyebrow">{collection.kind === 'exam' ? 'Exam' : 'Collection'}</p>
-          <h2 className="p-h2">{collection.name}</h2>
-          <p className="p-muted p-small">
+          <p className="p-eyebrow" style={{ marginBottom: 0 }}>
+            {collection.kind === 'exam' ? 'Exam' : 'Collection'}
+          </p>
+          <h2 className="p-collection-title">{collection.name}</h2>
+          <p className="p-muted" style={{ marginTop: 4, fontSize: 18 }}>
             {pieces.length} piece{pieces.length === 1 ? '' : 's'}
             {collection.kind === 'exam' && (collection.examDate === undefined ? ' · no exam date yet, so plans aim for your lessons' : '')}
           </p>
         </div>
-        {collection.kind === 'exam' && (
-          <label className="p-actions p-muted p-small">
-            Exam date
-            <input
-              className="p-input"
-              type="date"
-              value={date}
-              onChange={(e) => void updateCollection(collection.id, { examDate: e.target.value ? new Date(e.target.value).getTime() : null }).then(reload)}
-            />
-          </label>
-        )}
+        {collection.kind === 'exam' && <ExamDate collection={collection} date={date} reload={reload} />}
       </div>
-      <ul className="p-piece-list">
+      <ul className="p-set">
         {pieces.map((p) => {
           const path = derived.paths.get(p.id)
           const state = pieceState(p.id, derived)
@@ -181,15 +176,13 @@ function SetCard({ collection, overview, derived, reload }: { collection: Collec
                   : `${path.readyChunkCount} of ${path.chunks.length} chunks ready`
                 : 'Not started on the path'
           return (
-            <li key={p.id} className="p-piece-row">
-              <button type="button" onClick={() => navigate(overviewHref(p.id))} style={{ gap: 6, width: '100%' }}>
+            <li key={p.id}>
+              <button type="button" className="p-set-piece" onClick={() => navigate(overviewHref(p.id))}>
                 <strong>{p.title}</strong>
-                {path && (
-                  <span style={{ width: '100%' }}>
-                    <ChunkCells path={path} />
-                  </span>
-                )}
-                <span className="p-muted p-small">{status}</span>
+                {path && <ChunkCells path={path} />}
+                <span className="p-muted" style={{ fontSize: 16 }}>
+                  {status}
+                </span>
               </button>
             </li>
           )
@@ -197,6 +190,30 @@ function SetCard({ collection, overview, derived, reload }: { collection: Collec
       </ul>
       <AddPiece collection={collection} overview={overview} reload={reload} />
     </section>
+  )
+}
+
+/** "Set exam date" until there is one; then the date, editable. */
+function ExamDate({ collection, date, reload }: { collection: Collection; date: string; reload: () => Promise<void> }) {
+  const [editing, setEditing] = useState(false)
+  if (!date && !editing) {
+    return (
+      <button type="button" className="p-btn p-btn-outline p-btn-outline-pine" onClick={() => setEditing(true)}>
+        Set exam date
+      </button>
+    )
+  }
+  return (
+    <label className="p-actions p-muted" style={{ fontSize: 16 }}>
+      Exam date
+      <input
+        className="p-input"
+        type="date"
+        value={date}
+        autoFocus={editing}
+        onChange={(e) => void updateCollection(collection.id, { examDate: e.target.value ? new Date(e.target.value).getTime() : null }).then(reload)}
+      />
+    </label>
   )
 }
 
@@ -212,13 +229,18 @@ function BookCard({ collection, overview, derived, reload }: { collection: Colle
   const done = states.filter((s) => s.state === 'done').length
 
   return (
-    <section className="p-card" aria-label={collection.name} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
-        <p className="p-eyebrow">Book · in page order</p>
-        <h2 className="p-h2">{collection.name}</h2>
-        <p className="p-muted p-small">
-          {members.length} pieces{currentPage !== undefined ? ` · you're on page ${currentPage}` : ''} · {done} done with your teacher
-        </p>
+    <section className="p-card p-collection" aria-label={collection.name}>
+      <div className="p-collection-head">
+        <div>
+          <p className="p-eyebrow" style={{ marginBottom: 0 }}>
+            Book · in page order
+          </p>
+          <h2 className="p-collection-title">{collection.name}</h2>
+          <p className="p-muted" style={{ marginTop: 4, fontSize: 18 }}>
+            {members.length} pieces{currentPage !== undefined ? ` · you're on page ${currentPage}` : ''} · {done} done with your teacher
+          </p>
+        </div>
+        <ImportBook overview={overview} reload={reload} label="Import the rest of the book" />
       </div>
       <div className="p-book-marks" aria-label="Book progress, one mark per piece">
         {states.map((s) => (
@@ -229,19 +251,37 @@ function BookCard({ collection, overview, derived, reload }: { collection: Colle
           />
         ))}
       </div>
-      <p className="p-muted" style={{ fontSize: 15 }}>
-        Green: done with your teacher · outlined: current · plain: not yet
-      </p>
+      <div className="p-legend">
+        <span>
+          <i className="p-mark-done" />
+          Done with your teacher
+        </span>
+        <span>
+          <i className="p-mark-current" />
+          Current
+        </span>
+        <span>
+          <i />
+          Not yet
+        </span>
+      </div>
       {upNext.length > 0 && (
         <div className="p-upnext">
           {upNext.map((s, i) => (
-            <button key={s.m.pieceId} type="button" onClick={() => navigate(overviewHref(s.m.pieceId))} style={s.state === 'current' ? { border: '2px solid var(--accent)' } : undefined}>
-              <span className="p-eyebrow" style={{ marginBottom: 0 }}>
+            <button
+              key={s.m.pieceId}
+              type="button"
+              className={s.state === 'current' ? 'p-upnext-current' : undefined}
+              onClick={() => navigate(overviewHref(s.m.pieceId))}
+            >
+              <span className={`p-eyebrow${s.state === 'current' ? ' p-eyebrow-accent' : ''}`} style={{ marginBottom: 0, fontSize: 14 }}>
                 {s.state === 'current' ? 'Current' : i === current.length ? 'Next' : 'Then'}
                 {s.m.page !== undefined ? ` · p. ${s.m.page}` : ''}
               </span>
-              <strong style={{ fontSize: 20 }}>{s.piece.title}</strong>
-              <span className="p-muted p-small">{sizeLine(s.piece, overview)}</span>
+              <span className="p-upnext-title">{s.piece.title}</span>
+              <span className="p-muted" style={{ fontSize: 16 }}>
+                {sizeLine(s.piece, overview)}
+              </span>
             </button>
           ))}
         </div>
@@ -257,7 +297,7 @@ function NewCollection({ reload }: { reload: () => Promise<void> }) {
   const [kind, setKind] = useState<CollectionKind>('exam')
   if (!open) {
     return (
-      <button type="button" className="p-btn" onClick={() => setOpen(true)}>
+      <button type="button" className="p-btn p-btn-outline p-btn-outline-pine" onClick={() => setOpen(true)}>
         New collection
       </button>
     )
@@ -301,7 +341,7 @@ function NewCollection({ reload }: { reload: () => Promise<void> }) {
  * pages already in it are skipped, so "import the rest of the book" works).
  * Each piece is chunked as it lands, so the book's "up next" can show sizes.
  */
-function ImportBook({ overview, reload }: { overview: PathOverview; reload: () => Promise<void> }) {
+function ImportBook({ overview, reload, label }: { overview: PathOverview; reload: () => Promise<void>; label: string }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [progress, setProgress] = useState<string | undefined>(undefined)
   const [failed, setFailed] = useState<string[]>([])
@@ -347,8 +387,8 @@ function ImportBook({ overview, reload }: { overview: PathOverview; reload: () =
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <button type="button" className="p-btn" onClick={() => inputRef.current?.click()}>
-        Import a book folder
+      <button type="button" className="p-btn p-btn-outline" style={{ alignSelf: 'flex-start' }} onClick={() => inputRef.current?.click()}>
+        {label}
       </button>
       <input
         ref={inputRef}

@@ -56,7 +56,17 @@ export function collectionLabel(pieceId: string, collections: Collection[]): str
     const entry = c.pieces.find((p) => p.pieceId === pieceId)
     if (!entry) return []
     if (c.kind === 'exam') return [c.name]
-    return [entry.page !== undefined ? `${c.name} · p. ${entry.page}` : c.name]
+    const name = shortCollectionName(c)
+    return [entry.page !== undefined ? `${name} · p. ${entry.page}` : name]
   })
   return labels.length > 0 ? labels.join(' · ') : undefined
+}
+
+/** "ABRSM Grade 1" → as is; "Alfred's All-in-One, Book 2" → "Book 2" — short enough for a chip. */
+export function shortCollectionName(c: Pick<Collection, 'name' | 'kind'>): string {
+  if (c.kind === 'book') {
+    const m = c.name.match(/(book\s*\d+)\s*$/i)
+    if (m) return m[1].replace(/^b/, 'B')
+  }
+  return c.name
 }

@@ -1,170 +1,238 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { listAllAttempts } from '../../lib/db/attemptsRepo'
-import type { Attempt, PracticeSession } from '../../lib/db/db'
-import { listPieces, type PieceSummary } from '../../lib/db/piecesRepo'
+import type { PracticeSession } from '../../lib/db/db'
+import type { Collection } from '../../lib/db/pathRepo'
 import { listSessions } from '../../lib/db/sessionsRepo'
-import { buildPieceStatsMap, formatDuration } from '../../lib/pieceStats'
-import { buildDailyMinutesMap, buildHeatmapDays, dailyBuckets, weeklyBuckets, type HeatmapDay, type MinutesBucket } from './dailyMinutes'
+import { formatMinutes, groupByLessonWeek, longestRun } from '../../lib/lessonWeeks'
+import { nextLessonDate, shortDate } from '../../lib/path/deriveState'
+import { practiceDayKey } from '../../lib/streak'
+import { CollectionFilter } from '../Collections/CollectionFilter'
+import { shortCollectionName } from '../Path/links'
+import { WEEKDAY_NAMES } from '../Path/links'
+import { usePathData } from '../Path/usePathData'
+import { filterByPieces, isLessonSession, piecesOf } from '../Sessions/sessionKinds'
+import { GOAL_DAYS, goalHeadline, minutesByPiece, shareInWords } from './weeklyStats'
+import '../Path/path.css'
+import './stats.css'
 
-type AttemptSummary = Pick<Attempt, 'pieceId' | 'timestamp' | 'durationMs'>
+/** How many lesson weeks the headline chart covers. */
+const WEEKS_SHOWN = 18
+/** Chart height for a full seven-day week, in px. */
+const CHART_PX = 180
 
-type Range = '7d' | '30d' | '1y'
-
-const HEATMAP_WEEKS = 26
-
-function BarChart({ buckets }: { buckets: MinutesBucket[] }) {
-  const max = Math.max(1, ...buckets.map((b) => b.minutes))
-  return (
-    <div className="stats-bar-chart">
-      {buckets.map((b, i) => (
-        <div key={i} className="stats-bar-col" title={`${b.label}: ${formatDuration(b.minutes * 60_000)}`}>
-          <div className="stats-bar" style={{ height: `${Math.max(2, (b.minutes / max) * 100)}%` }} />
-        </div>
-      ))}
-    </div>
-  )
-}
-
-/** A GitHub-style contribution grid, one column per week (oldest to newest, left to right) and one row per weekday — `--accent` at an opacity proportional to that day's minutes, capped so one very long day doesn't wash out the rest of the scale. */
-function Heatmap({ days }: { days: HeatmapDay[] }) {
-  // Pad the front so the grid starts on a Sunday — otherwise the first
-  // partial week would draw its cells in the wrong rows.
-  const firstDow = new Date(days[0].dayKey).getDay()
-  const padded: (HeatmapDay | undefined)[] = [...Array(firstDow).fill(undefined), ...days]
-  const maxMinutes = Math.max(1, ...days.map((d) => d.minutes))
-  const scrollRef = useRef<HTMLDivElement>(null)
-
-  // The grid is wider than the panel (26 weeks of cells), so it scrolls —
-  // and starts scrolled to its left edge by default, which is the oldest
-  // week. Recent practice (the whole point of glancing at this) would sit
-  // just past the right edge, unscrolled-to, on first render. Snap to the
-  // end so today's column is what's actually visible.
-  useEffect(() => {
-    const el = scrollRef.current
-    if (el) el.scrollLeft = el.scrollWidth
-  }, [days])
-
-  // `grid-auto-flow: column` (see App.css) fills columns top-to-bottom
-  // before starting the next one, so 7 cells per column with a fixed
-  // `grid-template-rows: repeat(7, 1fr)` is all it takes to lay this out
-  // as weeks left-to-right without computing a column count here.
-  return (
-    <div className="stats-heatmap" ref={scrollRef}>
-      {padded.map((day, i) => {
-        if (!day) return <div key={i} className="stats-heatmap-cell stats-heatmap-cell-empty" />
-        const intensity = day.minutes === 0 ? 0 : Math.min(1, day.minutes / maxMinutes) * 0.8 + 0.2
-        return (
-          <div
-            key={i}
-            className="stats-heatmap-cell"
-            style={day.minutes > 0 ? { backgroundColor: `color-mix(in srgb, var(--accent) ${Math.round(intensity * 100)}%, var(--surface))` } : undefined}
-            title={`${new Date(day.dayKey).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}: ${formatDuration(day.minutes * 60_000)}`}
-          />
-        )
-      })}
-    </div>
-  )
-}
-
-/** Practice time split by piece, from scored attempt time — see this component's own doc comment on why sessions (which can span more than one piece) aren't the source for this particular chart. */
-function PieceBreakdown({ attempts, pieces }: { attempts: AttemptSummary[]; pieces: PieceSummary[] }) {
-  const statsByPieceId = buildPieceStatsMap(attempts)
-  const titleById = new Map(pieces.map((p) => [p.id, p.title]))
-  const rows = Array.from(statsByPieceId.entries())
-    .map(([pieceId, stats]) => ({ pieceId, title: titleById.get(pieceId) ?? 'Deleted piece', totalDurationMs: stats.totalDurationMs }))
-    .filter((r) => r.totalDurationMs > 0)
-    .sort((a, b) => b.totalDurationMs - a.totalDurationMs)
-
-  if (rows.length === 0) return <p className="history-empty">No scored practice time yet.</p>
-
-  const max = Math.max(...rows.map((r) => r.totalDurationMs))
-  return (
-    <ul className="stats-piece-breakdown">
-      {rows.map((row) => (
-        <li key={row.pieceId} className="stats-piece-row">
-          <span className="stats-piece-title">{row.title}</span>
-          <div className="stats-piece-bar-track">
-            <div className="stats-piece-bar" style={{ width: `${(row.totalDurationMs / max) * 100}%` }} />
-          </div>
-          <span className="stats-piece-value">{formatDuration(row.totalDurationMs)}</span>
-        </li>
-      ))}
-    </ul>
-  )
+/** "21 Nov". */
+function dayMonth(ms: number): string {
+  return shortDate(ms).slice(4)
 }
 
 /**
- * All computed client-side from `/api/sessions` and `/api/attempts/summary`
- * — no new server aggregation, and no charting dependency (hand-rolled
- * bars/grid — this project carries no charting library, and a heatmap plus
- * a bar chart is a few dozen lines each). See docs/sessions-plan.md.
- *
- * The practice-time chart and the calendar heatmap read from *sessions*
- * (derived + manual, so a day logged by hand counts); the per-piece
- * breakdown reads from *attempts* instead, because a derived session can
- * span more than one piece in one sitting and has no honest way to split
- * its minutes between them — an attempt's `durationMs` is unambiguously
- * one piece's time, same source `pieceStats.ts` already uses for the
- * library list.
+ * Stats (`Stats` / `PhoneStats` artboards). The headline is practice days
+ * per lesson week against a 4-day line, with the finding as its title;
+ * then a few totals, then minutes by piece grouped by collection. All of it
+ * from sessions (derived and logged), never lessons: this is home practice.
  */
 export function StatsView() {
+  const { overview, error } = usePathData()
   const [sessions, setSessions] = useState<PracticeSession[] | undefined>(undefined)
-  const [attempts, setAttempts] = useState<AttemptSummary[]>([])
-  const [pieces, setPieces] = useState<PieceSummary[]>([])
-  const [range, setRange] = useState<Range>('30d')
+  const [filter, setFilter] = useState<string | undefined>(undefined)
+  const [now] = useState(() => Date.now())
 
   useEffect(() => {
-    void Promise.all([listSessions(), listAllAttempts(), listPieces()]).then(([loadedSessions, loadedAttempts, loadedPieces]) => {
-      setSessions(loadedSessions)
-      setAttempts(loadedAttempts)
-      setPieces(loadedPieces)
-    })
+    void listSessions().then(setSessions)
   }, [])
 
-  const dailyMinutes = useMemo(() => buildDailyMinutesMap(sessions ?? []), [sessions])
-  const heatmapDays = useMemo(() => buildHeatmapDays(dailyMinutes, HEATMAP_WEEKS * 7), [dailyMinutes])
-  const buckets = useMemo(() => {
-    if (range === '7d') return dailyBuckets(dailyMinutes, 7)
-    if (range === '30d') return dailyBuckets(dailyMinutes, 30)
-    return weeklyBuckets(dailyMinutes, 52)
-  }, [dailyMinutes, range])
-  const totalMinutesInRange = useMemo(() => buckets.reduce((sum, b) => sum + b.minutes, 0), [buckets])
+  const lessons = useMemo(() => new Map((overview?.lessons ?? []).map((l) => [l.sessionId, l])), [overview])
+  const weekday = overview?.settings.lessonWeekday
+  const members = useMemo(
+    () => (filter ? new Set(overview?.collections.find((c) => c.id === filter)?.pieces.map((p) => p.pieceId)) : undefined),
+    [filter, overview],
+  )
 
-  if (sessions === undefined) return null
+  const stats = useMemo(() => {
+    if (!sessions) return undefined
+    const shown = filterByPieces(sessions, lessons, members)
+    const weeks = groupByLessonWeek(shown, (s) => isLessonSession(s, lessons), weekday, now).slice(0, WEEKS_SHOWN).reverse()
+    const since = weeks[0]?.start ?? practiceDayKey(now)
+    const practice = shown.filter((s) => !isLessonSession(s, lessons) && practiceDayKey(s.startedAt) >= since)
+    const days = practice.map((s) => practiceDayKey(s.startedAt))
+    const byPiece = minutesByPiece(practice.map((s) => ({ ...s, pieceIds: piecesOf(s, lessons).filter((id) => !members || members.has(id)) })))
+    return { weeks, since, practice, days, byPiece }
+  }, [sessions, lessons, members, weekday, now])
+
+  if (error) return <div className="path"><p className="p-error">{error}</p></div>
+  if (!overview || !stats) return <div className="path"><p className="p-muted">Loading stats…</p></div>
+
+  const { weeks, since, days, byPiece } = stats
+  const current = weeks.at(-1)
+  const totalMinutes = [...byPiece.values()].reduce((a, b) => a + b, 0)
+  const lessonDay = nextLessonDate(now, weekday)
+
+  // Best weeks and the longest stretch with no home practice, in words.
+  const past = weeks.slice(0, -1)
+  const best = Math.max(0, ...past.map((w) => w.practiceDays))
+  const bestWeeks = best > 0 ? past.filter((w) => w.practiceDays === best) : []
+  let gap = { len: 0, from: 0, to: 0 }
+  for (let i = 0, run = 0; i < past.length; i++) {
+    run = past[i].practiceDays === 0 ? run + 1 : 0
+    if (run > gap.len) gap = { len: run, from: past[i - run + 1].start, to: past[i].end }
+  }
+  const lessonWord = weekday !== undefined ? 'lesson' : 'week'
+  const story = [
+    bestWeeks.length > 0
+      ? `Your best ${bestWeeks.length === 1 ? 'week' : `${bestWeeks.length} weeks`} (${best} day${best === 1 ? '' : 's'}) led into the ${bestWeeks.map((w) => dayMonth(w.end)).join(' and ')} ${lessonWord}${bestWeeks.length === 1 ? '' : 's'}.`
+      : undefined,
+    gap.len >= 2 ? `The ${gap.len} weeks from ${dayMonth(gap.from)} to ${dayMonth(gap.to)} had no home practice.` : undefined,
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  const tiles = [
+    { value: String(new Set(days).size), label: `practice days since ${dayMonth(since)}` },
+    { value: formatMinutes(totalMinutes), label: 'practised at home' },
+    { value: `${longestRun(days)} day${longestRun(days) === 1 ? '' : 's'}`, label: 'longest run in a row' },
+    {
+      value: String(current?.practiceDays ?? 0),
+      label: lessonDay !== undefined ? `days so far before ${shortDate(lessonDay)}` : 'days so far this week',
+    },
+  ]
 
   return (
-    <div className="stats-view panel">
-      <h2>Stats</h2>
+    <div className="path">
+      <div className="p-header">
+        <h1 className="p-h1">Stats</h1>
+        <CollectionFilter collections={overview.collections} value={filter} onChange={setFilter} />
+      </div>
 
-      <section className="stats-section">
-        <div className="stats-section-header">
-          <h3>Practice time</h3>
-          <div className="stats-range-control" role="group" aria-label="Time range">
-            {(['7d', '30d', '1y'] as const).map((r) => (
-              <button
-                key={r}
-                type="button"
-                className={`stats-range-btn${r === range ? ' stats-range-btn-active' : ''}`}
-                onClick={() => setRange(r)}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
+      <section className="p-card t-card" aria-labelledby="days-title">
+        <div>
+          <h2 id="days-title" className="t-title">
+            {goalHeadline(weeks)}
+          </h2>
+          <p className="p-muted t-sub">
+            Days practised at home in each week before {weekday !== undefined ? `a ${WEEKDAY_NAMES[weekday]} lesson` : 'Sunday'}. The dashed line is {GOAL_DAYS} days.
+          </p>
         </div>
-        <p className="stats-total">{formatDuration(totalMinutesInRange * 60_000)} total</p>
-        <BarChart buckets={buckets} />
+        <DaysChart weeks={weeks} lessonDaySet={weekday !== undefined} />
+        {story && <p className="t-story">{story}</p>}
       </section>
 
-      <section className="stats-section">
-        <h3>Practice calendar</h3>
-        <Heatmap days={heatmapDays} />
-      </section>
+      <div className="t-tiles">
+        {tiles.map((t) => (
+          <div key={t.label} className="p-card t-tile">
+            <p className="t-tile-value">{t.value}</p>
+            <p className="p-muted t-tile-label">{t.label}</p>
+          </div>
+        ))}
+      </div>
 
-      <section className="stats-section">
-        <h3>Time by piece</h3>
-        <PieceBreakdown attempts={attempts} pieces={pieces} />
-      </section>
+      <PieceMinutes byPiece={byPiece} total={totalMinutes} since={since} collections={overview.collections} titles={new Map(overview.pieces.map((p) => [p.id, p.title]))} />
     </div>
+  )
+}
+
+function DaysChart({ weeks, lessonDaySet }: { weeks: { end: number; practiceDays: number; practiceMinutes: number }[]; lessonDaySet: boolean }) {
+  const px = CHART_PX / 7
+  // On a phone the chart scrolls sideways; start at the recent end.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollLeft = el.scrollWidth
+  }, [weeks.length])
+  return (
+    <div className="t-chart-scroll" ref={scrollRef}>
+      <div className="t-chart">
+        <div className="t-chart-plot">
+          <div className="t-goal" aria-hidden="true" style={{ bottom: Math.round(GOAL_DAYS * px) + 1 }} />
+          <span className="t-goal-label" aria-hidden="true" style={{ bottom: Math.round(GOAL_DAYS * px) + 4 }}>
+            {GOAL_DAYS} days
+          </span>
+          <ul className="t-bars" aria-label="Practice days per week">
+            {weeks.map((w) => (
+              <li key={w.end} title={`Week to ${lessonDaySet ? 'lesson ' : ''}${shortDate(w.end)}: ${w.practiceDays} days, ${formatMinutes(w.practiceMinutes)}`}>
+                <span className="t-bar-value">{w.practiceDays}</span>
+                <span
+                  className={`t-bar${w.practiceDays >= GOAL_DAYS ? ' t-bar-goal' : w.practiceDays > 0 ? ' t-bar-some' : ''}`}
+                  style={{ height: w.practiceDays === 0 ? 3 : Math.round(w.practiceDays * px) }}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="t-axis" aria-hidden="true">
+          {weeks.map((w, i) => (
+            <span key={w.end}>{(weeks.length - 1 - i) % 2 === 0 ? dayMonth(w.end) : ''}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PieceMinutes({
+  byPiece,
+  total,
+  since,
+  collections,
+  titles,
+}: {
+  byPiece: Map<string, number>
+  total: number
+  since: number
+  collections: Collection[]
+  titles: Map<string, string>
+}) {
+  if (total === 0) {
+    return (
+      <section className="p-card t-card">
+        <h2 className="t-title-small">Minutes by piece</h2>
+        <p className="p-muted">No home practice in these weeks yet.</p>
+      </section>
+    )
+  }
+  // Each piece under its first collection (exam sets first), the rest under Other.
+  const ordered = [...collections].sort((a, b) => Number(b.kind === 'exam') - Number(a.kind === 'exam'))
+  const groups = new Map<string, { name: string; exam: boolean; rows: { name: string; minutes: number }[] }>()
+  for (const [pieceId, minutes] of byPiece) {
+    if (minutes < 0.5) continue
+    const c = ordered.find((x) => x.pieces.some((p) => p.pieceId === pieceId))
+    const key = c?.id ?? 'other'
+    const group = groups.get(key) ?? { name: c ? shortCollectionName(c) : 'Other', exam: c?.kind === 'exam', rows: [] }
+    group.rows.push({ name: pieceId ? (titles.get(pieceId) ?? 'Deleted piece') : 'Other practice', minutes })
+    groups.set(key, group)
+  }
+  const list = [...groups.values()]
+    .map((g) => ({ ...g, total: g.rows.reduce((a, r) => a + r.minutes, 0), rows: g.rows.sort((a, b) => b.minutes - a.minutes) }))
+    .sort((a, b) => b.total - a.total)
+  const max = Math.max(...list.flatMap((g) => g.rows.map((r) => r.minutes)))
+  const top = list[0]
+  const headline =
+    list.length > 1 && top.name !== 'Other'
+      ? `${shareInWords(top.total / total)} of home practice went to ${top.exam ? 'exam pieces' : `${top.name} pieces`}`
+      : 'Minutes by piece'
+
+  return (
+    <section className="p-card t-card" aria-labelledby="time-title">
+      <div>
+        <h2 id="time-title" className="t-title-small">
+          {headline}
+        </h2>
+        <p className="p-muted t-sub">Minutes by piece since {dayMonth(since)}, grouped by collection.</p>
+      </div>
+      {list.map((g) => (
+        <div key={g.name} className="t-group">
+          <p className="t-group-name">
+            {g.name} · {Math.round(g.total)} min
+          </p>
+          {g.rows.map((r) => (
+            <div key={r.name} className="t-row">
+              <span className="t-row-name">{r.name}</span>
+              <span className="t-row-bar">
+                <span style={{ width: `${Math.max(2, (r.minutes / max) * 100)}%` }} />
+                <span className="t-row-min">{Math.round(r.minutes)} min</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </section>
   )
 }

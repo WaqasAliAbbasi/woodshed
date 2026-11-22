@@ -18,6 +18,9 @@ export const MODE_LABEL: Record<PracticeMode, string> = { metronome: '', notes: 
  * tempo-locked practice on the same range — so none of these are ever merged
  * into shared history/progress.
  *
+ * Sections the learning path created (`chunkId` set) are never matched,
+ * even on identical measures — see `resolvePathSection` (pathRepo.ts).
+ *
  * Sections created before hands-separate practice or Notes mode existed have
  * no `handFilter`/`mode` stored at all — treated as 'both'/'metronome' here
  * so old history keeps matching a fresh both-hands, metronome-mode attempt
@@ -33,6 +36,8 @@ export async function resolveSection(
   const sections = await listSectionsForPiece(pieceId)
   const existing = sections.find(
     (s) =>
+      // Never reuse a learning-path section: Free practice attempts must not move the path.
+      s.chunkId === undefined &&
       s.startMeasure === range.startMeasure &&
       s.endMeasure === range.endMeasure &&
       (s.handFilter ?? 'both') === handFilter &&

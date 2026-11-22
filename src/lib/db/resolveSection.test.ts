@@ -102,4 +102,21 @@ describe('resolveSection', () => {
     expect(resolved.id).not.toBe(legacy.id)
     expect(resolved.label).toBe('Measures 1-4 (Notes)')
   })
+
+  it('never reuses a learning-path section on the same measures', async () => {
+    const piece = await createPiece({ title: 'P', filename: 'p.musicxml', musicXml: '', measureCount: 10 })
+    const path = await createSection({
+      pieceId: piece.id,
+      label: 'Chunk 1 · Notes',
+      ...range,
+      defaultTempoBpm: 80,
+      handFilter: 'both',
+      mode: 'notes',
+      chunkId: 'c1',
+      rung: 'notes',
+    })
+    const free = await resolveSection(piece.id, range, 80, 'both', 'notes')
+    expect(free.id).not.toBe(path.id)
+    expect(free.chunkId).toBeUndefined()
+  })
 })

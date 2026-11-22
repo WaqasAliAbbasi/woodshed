@@ -36,6 +36,13 @@ export type PracticeEvent =
   | { type: 'repeat' }
   | { type: 'adjust' }
   | { type: 'done' }
+  /**
+   * Start an attempt with exactly these settings, from idle or straight
+   * from a result — the learning path's "Play at 69", which sets the next
+   * try's tempo itself rather than through an editable control. Free
+   * practice still goes configureSection → start.
+   */
+  | { type: 'begin'; range: MeasureRange; tempoBpm: number; handFilter: HandFilter; mode: PracticeMode }
 
 export const initialPracticeState: PracticeState = { status: 'PieceLoaded' }
 
@@ -62,6 +69,10 @@ function startingState(
  * payoff at POC stage.
  */
 export function practiceReducer(state: PracticeState, event: PracticeEvent): PracticeState {
+  if (event.type === 'begin') {
+    const idle = state.status === 'PieceLoaded' || state.status === 'SectionConfigured' || state.status === 'AttemptComplete'
+    return idle ? startingState(event.range, event.tempoBpm, event.handFilter, event.mode) : state
+  }
   switch (state.status) {
     case 'PieceLoaded':
       if (event.type === 'configureSection') {

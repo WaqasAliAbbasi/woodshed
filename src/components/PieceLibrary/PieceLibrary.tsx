@@ -1,21 +1,34 @@
 import { useEffect, useRef, useState } from 'react'
 import { listAllAttempts } from '../../lib/db/attemptsRepo'
-import { createPiece, deletePiece, getPiece, listPieces, type PieceSummary } from '../../lib/db/piecesRepo'
+import { createPiece, deletePiece, listPieces, type PieceSummary } from '../../lib/db/piecesRepo'
 import { listSessions } from '../../lib/db/sessionsRepo'
-import type { Piece } from '../../lib/db/db'
+import { parseScore } from '../../lib/path/scoreMeasures'
 import { parseMusicXmlMetadata } from '../../lib/musicxml/parseMetadata'
 import { isIOS } from '../../lib/platform'
 import { buildPieceStatsMap, formatDuration, formatPracticeDate, sortPiecesByRecency, type PieceStats } from '../../lib/pieceStats'
 import { computeStreak, type StreakSummary } from '../../lib/streak'
 import { ConfirmDialog } from '../ConfirmDialog/ConfirmDialog'
 
-export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void }) {
+/**
+ * Every piece as a flat list — the Library's "All pieces" (by title) and
+ * "Recent" (by last practiced) views — plus single-file upload. `onOpen`
+ * opens a piece's path; `onChanged` lets the parent refresh after an upload
+ * or delete.
+ */
+export function PieceLibrary({
+  onOpen,
+  order = 'recent',
+  onChanged,
+}: {
+  onOpen: (pieceId: string) => void
+  order?: 'recent' | 'title'
+  onChanged?: () => void
+}) {
   const [pieces, setPieces] = useState<PieceSummary[]>([])
   const [statsByPieceId, setStatsByPieceId] = useState<Map<string, PieceStats>>(new Map())
   const [streak, setStreak] = useState<StreakSummary | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
   const [pendingDelete, setPendingDelete] = useState<PieceSummary | undefined>(undefined)
-  const [openingPieceId, setOpeningPieceId] = useState<string | undefined>(undefined)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const refresh = () =>
@@ -55,34 +68,13 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
         composer: metadata.composer,
         filename: file.name,
         musicXml,
-        // Placeholder — the real measure count comes from OSMD once the piece is opened and rendered.
-        measureCount: 0,
+        measureCount: parseScore(musicXml).measures.length,
       })
       await refresh()
-      onSelect(piece)
+      onChanged?.()
+      onOpen(piece.id)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  // The library list holds summaries (no musicXml — see PieceSummary), so
-  // opening a piece means fetching the full record first. createPiece's
-  // return value above already has musicXml and skips this.
-  const handleSelect = async (piece: PieceSummary) => {
-    setError(undefined)
-    setOpeningPieceId(piece.id)
-    try {
-      const full = await getPiece(piece.id)
-      if (!full) {
-        setError('That piece no longer exists — refreshing the list.')
-        await refresh()
-        return
-      }
-      onSelect(full)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setOpeningPieceId(undefined)
     }
   }
 
@@ -92,6 +84,7 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
     try {
       await deletePiece(piece.id)
       await refresh()
+      onChanged?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -112,16 +105,11 @@ export function PieceLibrary({ onSelect }: { onSelect: (piece: Piece) => void })
       <h2>Your pieces</h2>
       {pieces.length === 0 && <p>No pieces yet — upload a MusicXML file to get started.</p>}
       <ul>
-        {sortPiecesByRecency(pieces, statsByPieceId).map((piece) => {
+        {(order === 'title' ? [...pieces].sort((a, b) => a.title.localeCompare(b.title)) : sortPiecesByRecency(pieces, statsByPieceId)).map((piece) => {
           const stats = statsByPieceId.get(piece.id)
           return (
             <li key={piece.id} className="piece-row">
-              <button
-                type="button"
-                className="piece-select"
-                disabled={openingPieceId === piece.id}
-                onClick={() => void handleSelect(piece)}
-              >
+              <button type="button" className="piece-select" onClick={() => onOpen(piece.id)}>
                 <span className="piece-title">{piece.title}</span>
                 {piece.composer && <span className="piece-composer">{piece.composer}</span>}
                 {stats && (

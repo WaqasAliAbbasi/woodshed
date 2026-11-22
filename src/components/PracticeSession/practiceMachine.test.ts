@@ -169,4 +169,27 @@ describe('practiceReducer', () => {
       if (state.status === 'AttemptScoring') expect(state.aborted).toBe(true)
     })
   })
+
+  describe('begin', () => {
+    const settings = { range, tempoBpm: 63, handFilter: 'both' as const, mode: 'metronome' as const }
+
+    it('starts straight from idle with the given settings', () => {
+      const state = practiceReducer(initialPracticeState, { type: 'begin', ...settings })
+      expect(state).toEqual({ status: 'CountingIn', ...settings })
+    })
+
+    it('starts the next try straight from a result, at a new tempo', () => {
+      const state = practiceReducer(runFullHappyPath(), { type: 'begin', ...settings, tempoBpm: 69 })
+      expect(state).toMatchObject({ status: 'CountingIn', tempoBpm: 69 })
+    })
+
+    it('skips the count-in in Notes mode', () => {
+      expect(practiceReducer(initialPracticeState, { type: 'begin', ...settings, mode: 'notes' }).status).toBe('Attempting')
+    })
+
+    it('is ignored mid-attempt', () => {
+      const counting = practiceReducer(initialPracticeState, { type: 'begin', ...settings })
+      expect(practiceReducer(counting, { type: 'begin', ...settings, tempoBpm: 100 })).toBe(counting)
+    })
+  })
 })

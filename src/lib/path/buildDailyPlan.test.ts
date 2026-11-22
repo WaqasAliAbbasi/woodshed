@@ -87,10 +87,11 @@ describe('buildDailyPlan', () => {
   it('gives a ready exam piece one short review a week', () => {
     const exam = piece('Berry', { finished: true, inExam: true, lastPathAttemptAt: NOW - 8 * DAY })
     const lesson = { outcome: 'continue' as const, at: YESTERDAY, fromLatestLesson: true }
-    let plan = buildDailyPlan({ pieces: [piece('A', { lesson }), exam] }, NOW, 20)
+    const a = piece('A', { lesson, path: pathWithChunkOneReady(YESTERDAY) })
+    let plan = buildDailyPlan({ pieces: [a, exam] }, NOW, 20)
     expect(plan.steps.find((s) => s.kind === 'review')).toMatchObject({ pieceId: 'Berry', why: 'Exam piece · weekly review' })
 
-    plan = buildDailyPlan({ pieces: [piece('A', { lesson }), { ...exam, lastPathAttemptAt: NOW - 2 * DAY }] }, NOW, 20)
+    plan = buildDailyPlan({ pieces: [a, { ...exam, lastPathAttemptAt: NOW - 2 * DAY }] }, NOW, 20)
     expect(plan.steps.find((s) => s.kind === 'review')).toBeUndefined()
   })
 
@@ -114,5 +115,12 @@ describe('buildDailyPlan', () => {
       NOW,
     )
     expect(plan.steps.at(-1)).toMatchObject({ kind: 'win', pieceId: 'Berry', target: { item: 'whole' } })
+  })
+
+  it("doesn't review the piece the plan already ends on", () => {
+    const lesson = { outcome: 'continue' as const, at: YESTERDAY, fromLatestLesson: true }
+    const berry = piece('Berry', { finished: true, inExam: true, lastPathAttemptAt: NOW - 8 * DAY })
+    const plan = buildDailyPlan({ pieces: [piece('A', { lesson }), berry] }, NOW, 20)
+    expect(plan.steps.map((s) => s.kind)).toEqual(['block', 'block', 'win'])
   })
 })

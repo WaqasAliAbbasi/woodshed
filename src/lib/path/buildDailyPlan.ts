@@ -183,9 +183,21 @@ export function buildDailyPlan(state: PlanState, today: number, budgetMinutes: n
     }
   }
 
+  // 4. End on a win — picked before the reviews, since a win on a ready
+  // exam piece already is that piece's run this week.
+  const focusFirst = [...active.filter(hasFocus), ...active.filter((p) => !hasFocus(p))]
+  const fromActive = focusFirst.map((p) => ({ p, readied: readiedItem(p) })).find((x) => x.readied !== undefined)
+  const readyPiece = state.pieces
+    .filter((p) => isReady(p))
+    .sort((a, b) => Number(b.inExam) - Number(a.inExam) || (b.lastPathAttemptAt ?? 0) - (a.lastPathAttemptAt ?? 0))[0]
+  const win = fromActive
+    ? { p: fromActive.p, item: fromActive.readied!.item }
+    : readyPiece
+      ? { p: readyPiece, item: 'whole' as const }
+      : undefined
   // 3. Weekly review for ready exam pieces that aren't being worked on.
   for (const p of state.pieces) {
-    if (!p.inExam || !isReady(p) || active.includes(p)) continue
+    if (!p.inExam || !isReady(p) || active.includes(p) || p === win?.p) continue
     if (p.lastPathAttemptAt !== undefined && today - p.lastPathAttemptAt < WEEK_MS) continue
     if (used + REVIEW_MINUTES > budgetMinutes - winMinutes) break
     steps.push({
@@ -201,17 +213,6 @@ export function buildDailyPlan(state: PlanState, today: number, budgetMinutes: n
     used += REVIEW_MINUTES
   }
 
-  // 4. End on a win.
-  const focusFirst = [...active.filter(hasFocus), ...active.filter((p) => !hasFocus(p))]
-  const fromActive = focusFirst.map((p) => ({ p, readied: readiedItem(p) })).find((x) => x.readied !== undefined)
-  const readyPiece = state.pieces
-    .filter((p) => isReady(p))
-    .sort((a, b) => Number(b.inExam) - Number(a.inExam) || (b.lastPathAttemptAt ?? 0) - (a.lastPathAttemptAt ?? 0))[0]
-  const win = fromActive
-    ? { p: fromActive.p, item: fromActive.readied!.item }
-    : readyPiece
-      ? { p: readyPiece, item: 'whole' as const }
-      : undefined
   if (win) {
     steps.push({
       key: 'win',

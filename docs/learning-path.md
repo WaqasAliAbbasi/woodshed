@@ -45,7 +45,9 @@ needs is here or linked.
 5. Collections: exam set and book, with folder import
 6. Device rules: phone-friendly planning screens, and the bigger-screen page for practice screens
 
-**Phase 2:** hear it first (#11), listen back, editable chunk boundaries, Sessions grouped by lesson week, Stats with practice days per lesson week, an exam date that spreads the plan.
+**Phase 1 polish (after Phase 1 landed):** make every Phase 1 screen match its artboard, and bring the Sessions and Stats redesign forward so no old UI is left in the main tabs. See [Look and feel](#look-and-feel). No rule or behaviour changes.
+
+**Phase 2:** hear it first (#11), listen back, editable chunk boundaries, an exam date that spreads the plan.
 
 **Phase 3:** left-hand-pattern rung, metronome-weaning rung, pedal (MIDI CC64), feedback-fading experiment, sending a run-through to the teacher, microphone recording.
 
@@ -131,9 +133,47 @@ Old manual sessions labelled "Lesson" still display as lessons.
 
 ## Devices
 
-- **Phone-friendly** (fluid, single column below about 700px): Library, Today's plan, Log lesson, and the session-end note. Phase 2 adds Sessions and Stats.
+- **Phone-friendly** (fluid, single column below about 700px): Library, Today's plan, Log lesson, the session-end note, Sessions and Stats.
 - **Laptop or tablet only:** piece overview, rung, result, nudge, join and whole-piece screens, and Free practice. Below 700px wide they're replaced by the **bigger-screen page** (`PhoneNeedsBigger` artboard). It names the piece and chunk, explains that iPhone browsers can't use MIDI, and offers Today's plan, Log lesson, and copying the link.
 - Check every new screen at 390px and at 860px or wider (CLAUDE.md).
+
+## Look and feel
+
+The artboards are the visual spec, not just a reference. Mock data in them is illustrative; layout, type sizes, spacing, colours and hierarchy are not. When the code and an artboard differ visually, the artboard wins, unless matching it would change a rule in this file.
+
+**Tokens:** use the existing ones in `src/index.css`, including dark mode. Don't invent new colours.
+- Headings: Piazzolla. Body text: Work Sans.
+- Pine is the primary button colour.
+- Amber means "current" or "selected", nothing else. Green means ready, nothing else.
+- Neutral warm grey means attempted but not yet ready.
+
+**One app shell on every page:**
+- The Woodshed mark on the left. Tabs Today, Library, Sessions and Stats; the active tab has a filled background.
+- Practice screens replace the tabs with a slim bar: back to Today, piece and chunk, Finish now, Free practice (`Rung` artboard).
+- Log out, MCP and Export key move into a small account menu at the right of the header. There's no footer.
+- One content width everywhere: a `max-width` of about 1200px, with `clamp(16px, 4vw, 40px)` side padding. No page may be a narrower column than the others.
+
+**Sizes, readable from the piano bench:**
+- Body text 18–20px; h1 `clamp(36px, 7vw, 52px)`.
+- Primary buttons 64–96px tall, one per screen.
+- Cards have 12–14px radius and 1px borders, as in the artboards.
+
+**Practice step** (`Rung`, `AfterAttempt`, `Nudge`, `JoinLock`, `SessionEnd` artboards):
+- **Score first.** Show only the current chunk's (or join's) measures, zoomed to fill the content width, directly under the rung pills and above everything else.
+- No OSMD zoom buttons on path screens; Free practice keeps them.
+- The tempo panel and Play sit side by side below the score, as in `Rung`. Notes-mode rungs show "No click · take your time" in that panel's place, at the same size.
+- The result after an attempt is its own state, laid out like `AfterAttempt`, not a toast or an inline line. Nudges are laid out like `Nudge`. Join milestones like `JoinLock`.
+
+**Sessions and Stats** (`Sessions` and `Stats` artboards, plus `PhoneSessions` and `PhoneStats`):
+- **Sessions:** grouped into the week before each lesson, with 7 day-dots and a summary per week. Lesson cards are visually distinct from practice cards. A callout appears when the only practice was on lesson day, and gaps of 2 or more empty weeks collapse into one line. It filters by collection, and has Log practice and Log lesson buttons. "This week" sits at the top with "Start today's plan".
+- **Stats:** the headline chart shows practice days per lesson week, with a dashed 4-day line, and the title states the finding ("4 or more practice days in N of the last M weeks"). Below it: total tiles, then minutes by piece grouped by collection. It filters by collection. The old practice calendar is removed.
+
+**Visual acceptance.** For every artboard named above, plus `Main`, `OverviewRepeats`, `TodayPlan`, `Library`, `LogLesson` and `PhoneNeedsBigger`:
+1. Run the app with realistic data. Several pieces in an exam collection and a book, a few lessons, some passed rungs. A local seed script is fine; don't commit the user's scores.
+2. Screenshot it at 1280×860 and 390×844.
+3. Compare against the artboard. Open the canvas in the built-in browser if you can, or read the artboard source with the Artifact tool. Fix differences in layout, size and hierarchy until a side-by-side would read as the same design.
+
+**Local dev gotcha:** in a worktree under `.claude/`, `/login` returns 404. Express's `sendFile` refuses paths containing a dot-directory. Fix it with `{ dotfiles: 'allow' }` on the `login.html` and `signup.html` `sendFile` calls in `server/index.ts`, scoped to those two files.
 
 ## Data (expand-only; see CLAUDE.md on `schema.sql`)
 
@@ -168,3 +208,13 @@ Pure functions to write first, each with co-located tests:
 - [ ] At 390px, practice screens show the bigger-screen page; the Library, plan and lesson log are usable.
 - [ ] `npm test`, `npm run lint` and `npx tsc -b` pass. Old pieces and history still load. The MCP tools still answer.
 - [ ] The user tries it at the piano on one real piece before Phase 2 starts.
+
+## Phase 1 polish is done when
+
+- [ ] Every screen listed under [Look and feel](#look-and-feel) passes its side-by-side check at 1280×860 and 390×844.
+- [ ] Today, Library, Sessions and Stats share one header and one content width. No old views remain in the main tabs.
+- [ ] The practice step shows the chunk's measures, zoomed, as the first thing under the rung pills.
+- [ ] Log out, MCP and Export key are in the account menu; there's no footer.
+- [ ] Sessions and Stats match their artboards, including at phone width. The old practice calendar is gone.
+- [ ] `/login` works when running from a worktree under `.claude/`.
+- [ ] No change to any rule, query result or stored data shape. `npm test`, `npm run lint` and `npx tsc -b` pass.

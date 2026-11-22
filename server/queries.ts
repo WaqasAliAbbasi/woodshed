@@ -1,5 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type { Attempt, Piece, PracticeSession, Section } from '../src/lib/db/db.ts'
+import type { ChunkPlan } from '../src/lib/path/chunkPiece.ts'
+import { PATH_RUNGS, type Chunk, type LessonOutcome, type PathAttempt, type PathRung } from '../src/lib/path/types.ts'
 import { attemptWindow, clusterWindows, mergeWindows, SESSION_GAP_MS, type PracticeWindow } from '../src/lib/sessions.ts'
 import { generateId } from '../src/lib/id.ts'
 import { fromIntBoolean, nullToUndefined, toParam } from './db.ts'
@@ -35,6 +37,8 @@ interface PieceRow {
   updated_at: number
   measure_count: number
   target_tempo_bpm: number | null
+  finished_at: number | null
+  new_measure_count: number | null
 }
 
 function pieceFromRow(row: PieceRow): Piece {
@@ -48,10 +52,13 @@ function pieceFromRow(row: PieceRow): Piece {
     updatedAt: row.updated_at,
     measureCount: row.measure_count,
     targetTempoBpm: nullToUndefined(row.target_tempo_bpm),
+    finishedAt: nullToUndefined(row.finished_at),
+    newMeasureCount: nullToUndefined(row.new_measure_count),
   }
 }
 
-const PIECE_SUMMARY_COLUMNS = 'id, title, composer, filename, created_at, updated_at, measure_count, target_tempo_bpm'
+const PIECE_SUMMARY_COLUMNS =
+  'id, title, composer, filename, created_at, updated_at, measure_count, target_tempo_bpm, finished_at, new_measure_count'
 
 function pieceSummaryFromRow(row: Omit<PieceRow, 'music_xml'>): PieceSummary {
   return {
@@ -63,6 +70,8 @@ function pieceSummaryFromRow(row: Omit<PieceRow, 'music_xml'>): PieceSummary {
     updatedAt: row.updated_at,
     measureCount: row.measure_count,
     targetTempoBpm: nullToUndefined(row.target_tempo_bpm),
+    finishedAt: nullToUndefined(row.finished_at),
+    newMeasureCount: nullToUndefined(row.new_measure_count),
   }
 }
 
@@ -85,8 +94,8 @@ export function ownsPiece(db: DatabaseSync, userId: string, pieceId: string): bo
 
 export function createPiece(db: DatabaseSync, userId: string, piece: Piece): void {
   db.prepare(
-    `INSERT INTO pieces (id, user_id, title, composer, filename, music_xml, created_at, updated_at, measure_count)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO pieces (id, user_id, title, composer, filename, music_xml, created_at, updated_at, measure_count, target_tempo_bpm)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        title = excluded.title, composer = excluded.composer, filename = excluded.filename,
        music_xml = excluded.music_xml, updated_at = excluded.updated_at, measure_count = excluded.measure_count
@@ -101,6 +110,7 @@ export function createPiece(db: DatabaseSync, userId: string, piece: Piece): voi
     piece.createdAt,
     piece.updatedAt,
     piece.measureCount,
+    toParam(piece.targetTempoBpm),
   )
 }
 
@@ -165,6 +175,8 @@ interface SectionRow {
   created_at: number
   hand_filter: string | null
   mode: string | null
+  chunk_id: string | null
+  rung: string | null
 }
 
 function sectionFromRow(row: SectionRow): Section {
@@ -178,6 +190,8 @@ function sectionFromRow(row: SectionRow): Section {
     createdAt: row.created_at,
     handFilter: nullToUndefined(row.hand_filter) as Section['handFilter'],
     mode: nullToUndefined(row.mode) as Section['mode'],
+    chunkId: nullToUndefined(row.chunk_id),
+    rung: nullToUndefined(row.rung) as Section['rung'],
   }
 }
 
@@ -191,11 +205,11 @@ export function getSection(db: DatabaseSync, userId: string, id: string): Sectio
   return row ? sectionFromRow(row) : undefined
 }
 
-/** Caller (routes/sections.ts) must already have verified `section.pieceId` is owned by `userId` — see `ownsPiece` — before calling this; it does not re-check. */
+/** Caller (routes/sections.ts) must already have verified `section.pieceId` is owned by `userId` — see `ownsPiece` — and, for a path section, that `section.chunkId` is one of that piece's chunks (`chunkBelongsToPiece`), before calling this; it does not re-check. */
 export function createSection(db: DatabaseSync, userId: string, section: Section): void {
   db.prepare(
-    `INSERT INTO sections (id, user_id, piece_id, label, start_measure, end_measure, default_tempo_bpm, created_at, hand_filter, mode)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO sections (id, user_id, piece_id, label, start_measure, end_measure, default_tempo_bpm, created_at, hand_filter, mode, chunk_id, rung)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO NOTHING`,
   ).run(
     section.id,
@@ -208,6 +222,8 @@ export function createSection(db: DatabaseSync, userId: string, section: Section
     section.createdAt,
     toParam(section.handFilter),
     toParam(section.mode),
+    toParam(section.chunkId),
+    toParam(section.rung),
   )
 }
 
@@ -755,4 +771,332 @@ export function listRecentAttempts(
     handFilter: nullToUndefined(row.hand_filter) as Section['handFilter'],
     aggregate: JSON.parse(row.aggregate) as Attempt['aggregate'],
   }))
+}
+
+// ---------------------------------------------------------------------
+// Learning path — see docs/learning-path.md and src/lib/path/. Chunks,
+// collections and lessons are stored; rung progress never is (it's derived
+// client-side from attempts on sections tagged with a chunk).
+// ---------------------------------------------------------------------
+
+interface ChunkRow {
+  id: string
+  piece_id: string
+  idx: number
+  start_measure: number
+  end_measure: number
+  repeat_of_chunk_id: string | null
+  created_at: number
+}
+
+function chunkFromRow(row: ChunkRow): Chunk {
+  return {
+    id: row.id,
+    pieceId: row.piece_id,
+    idx: row.idx,
+    startMeasure: row.start_measure,
+    endMeasure: row.end_measure,
+    repeatOfChunkId: nullToUndefined(row.repeat_of_chunk_id),
+    createdAt: row.created_at,
+  }
+}
+
+export function listChunksForPiece(db: DatabaseSync, userId: string, pieceId: string): Chunk[] {
+  const rows = db
+    .prepare('SELECT * FROM chunks WHERE piece_id = ? AND user_id = ? ORDER BY idx')
+    .all(pieceId, userId) as unknown as ChunkRow[]
+  return rows.map(chunkFromRow)
+}
+
+export function listChunks(db: DatabaseSync, userId: string): Chunk[] {
+  const rows = db.prepare('SELECT * FROM chunks WHERE user_id = ? ORDER BY piece_id, idx').all(userId) as unknown as ChunkRow[]
+  return rows.map(chunkFromRow)
+}
+
+/** True if `chunkId` is one of `pieceId`'s chunks and owned by `userId` — what a path section's chunk id is checked against before it's stored. */
+export function chunkBelongsToPiece(db: DatabaseSync, userId: string, chunkId: string, pieceId: string): boolean {
+  return db.prepare('SELECT 1 FROM chunks WHERE id = ? AND piece_id = ? AND user_id = ?').get(chunkId, pieceId, userId) !== undefined
+}
+
+/**
+ * Stores a piece's chunks, once. Chunk boundaries are fixed in Phase 1 —
+ * every path section and attempt hangs off them — so a second call (two
+ * tabs opening a fresh piece at once, a retried request) returns the chunks
+ * already there instead of replacing them. Also records the piece's
+ * measure count and new-measure count, which come from the same parse.
+ * Caller must have verified the piece is owned by `userId`.
+ */
+export function createChunks(
+  db: DatabaseSync,
+  userId: string,
+  pieceId: string,
+  input: { chunks: ChunkPlan[]; measureCount: number; newMeasureCount: number; markedTempoBpm?: number },
+): Chunk[] {
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    const existing = listChunksForPiece(db, userId, pieceId)
+    if (existing.length > 0) {
+      db.exec('COMMIT')
+      return existing
+    }
+    const now = Date.now()
+    const ids = input.chunks.map(() => generateId())
+    const insert = db.prepare(
+      `INSERT INTO chunks (id, user_id, piece_id, idx, start_measure, end_measure, repeat_of_chunk_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    input.chunks.forEach((chunk, i) => {
+      const repeatOf = chunk.repeatOfIdx !== undefined ? ids[chunk.repeatOfIdx] : undefined
+      insert.run(ids[i], userId, pieceId, chunk.idx, chunk.startMeasure, chunk.endMeasure, toParam(repeatOf), now)
+    })
+    // The score's marked tempo fills in an unset target here, so screens
+    // that never load the score (the plan, on a phone) know what the piece
+    // is worked up to — it's the same value the client would fall back to.
+    db.prepare(
+      `UPDATE pieces SET measure_count = ?, new_measure_count = ?, target_tempo_bpm = COALESCE(target_tempo_bpm, ?)
+       WHERE id = ? AND user_id = ?`,
+    ).run(input.measureCount, input.newMeasureCount, toParam(input.markedTempoBpm), pieceId, userId)
+    db.exec('COMMIT')
+  } catch (err) {
+    db.exec('ROLLBACK')
+    throw err
+  }
+  return listChunksForPiece(db, userId, pieceId)
+}
+
+export function listPathSections(db: DatabaseSync, userId: string): Section[] {
+  const rows = db.prepare('SELECT * FROM sections WHERE user_id = ? AND chunk_id IS NOT NULL').all(userId) as unknown as SectionRow[]
+  return rows.map(sectionFromRow)
+}
+
+/** Every attempt on a path section, without `noteResults` — the rules that read the whole library (start tempo, the plan) only need the aggregate. */
+export function listPathAttempts(db: DatabaseSync, userId: string): PathAttempt[] {
+  const rows = db
+    .prepare(
+      `SELECT a.id, a.section_id, a.piece_id, a.tempo_bpm, a.timestamp, a.aborted, a.duration_ms, a.aggregate, a.session_id
+       FROM attempts a JOIN sections s ON s.id = a.section_id
+       WHERE a.user_id = ? AND s.chunk_id IS NOT NULL
+       ORDER BY a.timestamp`,
+    )
+    .all(userId) as unknown as Omit<AttemptRow, 'note_results'>[]
+  return rows.map((row) => ({
+    id: row.id,
+    sectionId: row.section_id,
+    pieceId: row.piece_id,
+    tempoBpm: row.tempo_bpm,
+    timestamp: row.timestamp,
+    aborted: fromIntBoolean(row.aborted),
+    durationMs: nullToUndefined(row.duration_ms),
+    aggregate: JSON.parse(row.aggregate) as Attempt['aggregate'],
+    sessionId: nullToUndefined(row.session_id),
+  }))
+}
+
+export type CollectionKind = 'book' | 'exam' | 'other'
+export const COLLECTION_KINDS: readonly CollectionKind[] = ['book', 'exam', 'other']
+
+export interface Collection {
+  id: string
+  name: string
+  kind: CollectionKind
+  examDate?: number
+  createdAt: number
+  /** In collection order: by page for a book, then by position. */
+  pieces: { pieceId: string; position: number; page?: number }[]
+}
+
+export function listCollections(db: DatabaseSync, userId: string): Collection[] {
+  const rows = db.prepare('SELECT * FROM collections WHERE user_id = ? ORDER BY created_at').all(userId) as unknown as {
+    id: string
+    name: string
+    kind: string
+    exam_date: number | null
+    created_at: number
+  }[]
+  const members = db
+    .prepare('SELECT collection_id, piece_id, position, page FROM collection_pieces WHERE user_id = ? ORDER BY page IS NULL, page, position')
+    .all(userId) as unknown as { collection_id: string; piece_id: string; position: number; page: number | null }[]
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    kind: row.kind as CollectionKind,
+    examDate: nullToUndefined(row.exam_date),
+    createdAt: row.created_at,
+    pieces: members
+      .filter((m) => m.collection_id === row.id)
+      .map((m) => ({ pieceId: m.piece_id, position: m.position, page: nullToUndefined(m.page) })),
+  }))
+}
+
+export function getCollection(db: DatabaseSync, userId: string, id: string): Collection | undefined {
+  return listCollections(db, userId).find((c) => c.id === id)
+}
+
+export function createCollection(db: DatabaseSync, userId: string, input: { name: string; kind: CollectionKind; examDate?: number }): Collection {
+  const id = generateId()
+  db.prepare('INSERT INTO collections (id, user_id, name, kind, exam_date, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
+    id,
+    userId,
+    input.name,
+    input.kind,
+    toParam(input.examDate),
+    Date.now(),
+  )
+  return getCollection(db, userId, id)!
+}
+
+/** `examDate: null` clears it; omitted fields are left as they are. */
+export function updateCollection(
+  db: DatabaseSync,
+  userId: string,
+  id: string,
+  updates: { name?: string; examDate?: number | null },
+): Collection | undefined {
+  if (updates.name !== undefined) db.prepare('UPDATE collections SET name = ? WHERE id = ? AND user_id = ?').run(updates.name, id, userId)
+  if (updates.examDate !== undefined) {
+    db.prepare('UPDATE collections SET exam_date = ? WHERE id = ? AND user_id = ?').run(updates.examDate, id, userId)
+  }
+  return getCollection(db, userId, id)
+}
+
+export function deleteCollection(db: DatabaseSync, userId: string, id: string): boolean {
+  return db.prepare('DELETE FROM collections WHERE id = ? AND user_id = ?').run(id, userId).changes > 0
+}
+
+export function ownsCollection(db: DatabaseSync, userId: string, id: string): boolean {
+  return db.prepare('SELECT 1 FROM collections WHERE id = ? AND user_id = ?').get(id, userId) !== undefined
+}
+
+/** Adds (or re-pages) a piece in a collection, at the end unless a position is given. Caller must have verified both are owned by `userId`. */
+export function addPieceToCollection(
+  db: DatabaseSync,
+  userId: string,
+  collectionId: string,
+  pieceId: string,
+  options: { page?: number } = {},
+): void {
+  const { next } = db
+    .prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM collection_pieces WHERE collection_id = ? AND user_id = ?')
+    .get(collectionId, userId) as { next: number }
+  db.prepare(
+    `INSERT INTO collection_pieces (collection_id, piece_id, user_id, position, page) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(collection_id, piece_id) DO UPDATE SET page = excluded.page`,
+  ).run(collectionId, pieceId, userId, next, toParam(options.page))
+}
+
+export function removePieceFromCollection(db: DatabaseSync, userId: string, collectionId: string, pieceId: string): boolean {
+  return (
+    db.prepare('DELETE FROM collection_pieces WHERE collection_id = ? AND piece_id = ? AND user_id = ?').run(collectionId, pieceId, userId)
+      .changes > 0
+  )
+}
+
+export interface LessonPiece {
+  pieceId: string
+  outcome: LessonOutcome
+  focus?: string
+}
+
+export const LESSON_OUTCOMES: readonly LessonOutcome[] = ['finished', 'continue', 'new']
+
+export interface Lesson {
+  sessionId: string
+  startedAt: number
+  endedAt: number
+  note?: string
+  pieces: LessonPiece[]
+}
+
+/**
+ * Logs a lesson: a manual practice session labelled "Lesson" (so it shows
+ * in Sessions and keeps the streak honest, like any logged practice) plus
+ * a row per piece covered. Finished sets the piece's `finished_at` — the
+ * teacher's verdict, whatever the path says — and Keep going or New clears
+ * it again. One transaction, so a lesson is never half-recorded. Caller
+ * must have verified every piece id is owned by `userId`.
+ */
+export function createLesson(
+  db: DatabaseSync,
+  userId: string,
+  input: { startedAt: number; endedAt: number; note?: string; pieces: LessonPiece[] },
+): Lesson {
+  db.exec('BEGIN IMMEDIATE')
+  let sessionId: string
+  try {
+    sessionId = createManualSession(db, userId, { startedAt: input.startedAt, endedAt: input.endedAt, label: 'Lesson', note: input.note }).id
+    const insert = db.prepare('INSERT INTO lesson_pieces (session_id, piece_id, user_id, outcome, focus) VALUES (?, ?, ?, ?, ?)')
+    const setFinished = db.prepare('UPDATE pieces SET finished_at = ? WHERE id = ? AND user_id = ?')
+    for (const piece of input.pieces) {
+      insert.run(sessionId, piece.pieceId, userId, piece.outcome, toParam(piece.focus))
+      setFinished.run(piece.outcome === 'finished' ? input.startedAt : null, piece.pieceId, userId)
+    }
+    db.exec('COMMIT')
+  } catch (err) {
+    db.exec('ROLLBACK')
+    throw err
+  }
+  return listLessons(db, userId).find((l) => l.sessionId === sessionId)!
+}
+
+/** Lessons logged with per-piece outcomes, newest first. (Older manual sessions labelled "Lesson" still show in Sessions; they just have no outcomes to plan from.) */
+export function listLessons(db: DatabaseSync, userId: string): Lesson[] {
+  const rows = db
+    .prepare(
+      `SELECT ps.id, ps.started_at, ps.ended_at, ps.note, lp.piece_id, lp.outcome, lp.focus
+       FROM lesson_pieces lp JOIN practice_sessions ps ON ps.id = lp.session_id
+       WHERE lp.user_id = ? AND ps.user_id = ?
+       ORDER BY ps.started_at DESC, lp.rowid`,
+    )
+    .all(userId, userId) as unknown as {
+    id: string
+    started_at: number
+    ended_at: number
+    note: string | null
+    piece_id: string
+    outcome: string
+    focus: string | null
+  }[]
+  const lessons = new Map<string, Lesson>()
+  for (const row of rows) {
+    let lesson = lessons.get(row.id)
+    if (!lesson) {
+      lesson = { sessionId: row.id, startedAt: row.started_at, endedAt: row.ended_at, note: nullToUndefined(row.note), pieces: [] }
+      lessons.set(row.id, lesson)
+    }
+    lesson.pieces.push({ pieceId: row.piece_id, outcome: row.outcome as LessonOutcome, focus: nullToUndefined(row.focus) })
+  }
+  return [...lessons.values()]
+}
+
+export interface UserSettings {
+  /** 0 = Sunday … 6 = Saturday. */
+  lessonWeekday?: number
+}
+
+export function getSettings(db: DatabaseSync, userId: string): UserSettings {
+  const row = db.prepare('SELECT lesson_weekday FROM users WHERE id = ?').get(userId) as { lesson_weekday: number | null } | undefined
+  return { lessonWeekday: nullToUndefined(row?.lesson_weekday ?? null) }
+}
+
+export function updateSettings(db: DatabaseSync, userId: string, updates: { lessonWeekday?: number | null }): UserSettings {
+  if (updates.lessonWeekday !== undefined) {
+    db.prepare('UPDATE users SET lesson_weekday = ? WHERE id = ?').run(updates.lessonWeekday, userId)
+  }
+  return getSettings(db, userId)
+}
+
+/** The most recent session note — "One line for next time" from the session-end screen, shown at the top of the next plan. */
+export function latestSessionNote(db: DatabaseSync, userId: string): { sessionId: string; note: string; startedAt: number } | undefined {
+  const row = db
+    .prepare(
+      `SELECT id, note, started_at FROM practice_sessions
+       WHERE user_id = ? AND source = 'derived' AND note IS NOT NULL AND note != ''
+       ORDER BY started_at DESC LIMIT 1`,
+    )
+    .get(userId) as { id: string; note: string; started_at: number } | undefined
+  return row ? { sessionId: row.id, note: row.note, startedAt: row.started_at } : undefined
+}
+
+export function isPathRung(value: unknown): value is PathRung {
+  return typeof value === 'string' && (PATH_RUNGS as readonly string[]).includes(value)
 }

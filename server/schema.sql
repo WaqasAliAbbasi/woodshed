@@ -16,7 +16,11 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   username TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  -- The day of the week lessons happen on, 0 = Sunday … 6 = Saturday, or
+  -- NULL if not set. Drives "lesson Sat 28 Nov" on the plan. Added after
+  -- this table shipped — see ADDED_COLUMNS in db.ts.
+  lesson_weekday INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS pieces (
@@ -36,7 +40,15 @@ CREATE TABLE IF NOT EXISTS pieces (
   -- target falls back to that. Added after this table shipped — see
   -- ADDED_COLUMNS in db.ts, which is what actually puts it on an existing
   -- database; this line only covers databases created from scratch.
-  target_tempo_bpm INTEGER
+  target_tempo_bpm INTEGER,
+  -- Set when a lesson marks the piece Finished: the teacher's verdict
+  -- stands whatever the learning path says. Cleared if a later lesson
+  -- puts it back to Keep going or New. (ADDED_COLUMNS, like the two below.)
+  finished_at INTEGER,
+  -- Measures whose notes don't repeat an earlier measure, recorded when the
+  -- piece is chunked — the "M new" in "N bars, M new", without the client
+  -- having to fetch and parse every score in a book to show it.
+  new_measure_count INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_pieces_user_id ON pieces(user_id);
 CREATE INDEX IF NOT EXISTS idx_pieces_created_at ON pieces(created_at);
@@ -58,7 +70,15 @@ CREATE TABLE IF NOT EXISTS sections (
   default_tempo_bpm INTEGER NOT NULL,
   created_at INTEGER NOT NULL,
   hand_filter TEXT,
-  mode TEXT
+  mode TEXT,
+  -- Learning path only (see docs/learning-path.md and src/lib/path/): the
+  -- chunk this section belongs to and which rung of it it is ('notes',
+  -- 'metronome', 'join', …). NULL on every Free practice section, which is
+  -- what keeps Free practice from moving the path. The path creates ordinary
+  -- sections so attempts, history and the MCP tools need no changes.
+  -- (ADDED_COLUMNS.)
+  chunk_id TEXT REFERENCES chunks(id) ON DELETE SET NULL,
+  rung TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_sections_piece_id ON sections(piece_id);
 CREATE INDEX IF NOT EXISTS idx_sections_user_id ON sections(user_id);
@@ -78,6 +98,47 @@ CREATE TABLE IF NOT EXISTS attempts (
 CREATE INDEX IF NOT EXISTS idx_attempts_section_id ON attempts(section_id);
 CREATE INDEX IF NOT EXISTS idx_attempts_piece_id ON attempts(piece_id);
 CREATE INDEX IF NOT EXISTS idx_attempts_user_id_timestamp ON attempts(user_id, timestamp);
+
+-- The learning path's chunks: a piece cut into 2–6-bar pieces to learn one
+-- at a time (src/lib/path/chunkPiece.ts). Computed once, client-side (only
+-- the client parses MusicXML), and stored so every screen and device agrees
+-- on the boundaries. `repeat_of_chunk_id` marks a chunk whose notes copy an
+-- earlier one's exactly. Rung progress is never stored — it's derived from
+-- attempts on the sections pointing back here (see sections.chunk_id).
+CREATE TABLE IF NOT EXISTS chunks (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  piece_id TEXT NOT NULL REFERENCES pieces(id) ON DELETE CASCADE,
+  idx INTEGER NOT NULL,
+  start_measure INTEGER NOT NULL,
+  end_measure INTEGER NOT NULL,
+  repeat_of_chunk_id TEXT REFERENCES chunks(id) ON DELETE SET NULL,
+  created_at INTEGER NOT NULL,
+  UNIQUE (piece_id, idx)
+);
+CREATE INDEX IF NOT EXISTS idx_chunks_user_id ON chunks(user_id);
+
+-- A book (ordered by page) or an exam set (optional date). A piece can be
+-- in more than one.
+CREATE TABLE IF NOT EXISTS collections (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL,      -- 'book' | 'exam' | 'other'
+  exam_date INTEGER,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_collections_user_id ON collections(user_id);
+
+CREATE TABLE IF NOT EXISTS collection_pieces (
+  collection_id TEXT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+  piece_id TEXT NOT NULL REFERENCES pieces(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  page INTEGER,
+  PRIMARY KEY (collection_id, piece_id)
+);
+CREATE INDEX IF NOT EXISTS idx_collection_pieces_user_id ON collection_pieces(user_id);
 
 -- A bounded stretch of practice — the unit `src/components/Sessions/`
 -- shows, distinct from an *attempt* (one scored run of one section). Named
@@ -116,6 +177,20 @@ CREATE TABLE IF NOT EXISTS practice_sessions (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_practice_sessions_user_started ON practice_sessions(user_id, started_at);
+
+-- One row per piece covered in a lesson. The lesson itself is a manual
+-- practice_sessions row labelled "Lesson" (date, minutes, note), so it shows
+-- in Sessions and the streak like any other logged practice. The latest
+-- outcome per piece decides what Today's plan works on.
+CREATE TABLE IF NOT EXISTS lesson_pieces (
+  session_id TEXT NOT NULL REFERENCES practice_sessions(id) ON DELETE CASCADE,
+  piece_id TEXT NOT NULL REFERENCES pieces(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  outcome TEXT NOT NULL,   -- 'finished' | 'continue' | 'new'
+  focus TEXT,
+  PRIMARY KEY (session_id, piece_id)
+);
+CREATE INDEX IF NOT EXISTS idx_lesson_pieces_user_id ON lesson_pieces(user_id);
 
 -- Login session (see server/auth/session.ts). Opaque bearer token in an
 -- HttpOnly cookie, not a JWT — makes "log out everywhere" for one user (or

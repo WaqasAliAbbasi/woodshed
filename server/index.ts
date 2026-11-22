@@ -23,6 +23,8 @@ import { createOAuthProvider } from './oauth/provider.ts'
 import { backfillSessions } from './queries.ts'
 import { createExportRouter } from './routes/export.ts'
 import { createAttemptsRouter } from './routes/attempts.ts'
+import { createCollectionsRouter } from './routes/collections.ts'
+import { createPathRouter } from './routes/path.ts'
 import { createPiecesRouter } from './routes/pieces.ts'
 import { createSectionsRouter } from './routes/sections.ts'
 import { createSessionsRouter } from './routes/sessions.ts'
@@ -136,6 +138,8 @@ app.use(createPiecesRouter(db))
 app.use(createSectionsRouter(db))
 app.use(createAttemptsRouter(db))
 app.use(createSessionsRouter(db))
+app.use(createPathRouter(db))
+app.use(createCollectionsRouter(db))
 
 // ---- MCP: OAuth 2.1 authorization server + the /mcp endpoint itself ----
 //

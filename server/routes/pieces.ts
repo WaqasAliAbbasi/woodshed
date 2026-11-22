@@ -50,6 +50,14 @@ export function createPiecesRouter(db: DatabaseSync): Router {
       createdAt: now,
       updatedAt: now,
       measureCount: body.measureCount ?? 0,
+      // A folder import knows the target from the book's metadata.json.
+      targetTempoBpm:
+        typeof body.targetTempoBpm === 'number' &&
+        Number.isInteger(body.targetTempoBpm) &&
+        body.targetTempoBpm >= MIN_TEMPO_BPM &&
+        body.targetTempoBpm <= MAX_TEMPO_BPM
+          ? body.targetTempoBpm
+          : undefined,
     }
     queries.createPiece(db, getUserId(req), piece)
     res.status(201).json(piece)

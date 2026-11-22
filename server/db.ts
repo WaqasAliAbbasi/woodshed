@@ -65,6 +65,14 @@ const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   // allows deleting a manual session, and getSession's practice_sessions
   // rows are never the target of a piece cascade.
   { table: 'attempts', column: 'session_id', definition: 'TEXT REFERENCES practice_sessions(id)' },
+  // The learning path (docs/learning-path.md) — see schema.sql's comments
+  // on each. All nullable: every existing row is a Free practice section, an
+  // unfinished piece, or a user with no lesson day set.
+  { table: 'sections', column: 'chunk_id', definition: 'TEXT REFERENCES chunks(id) ON DELETE SET NULL' },
+  { table: 'sections', column: 'rung', definition: 'TEXT' },
+  { table: 'pieces', column: 'finished_at', definition: 'INTEGER' },
+  { table: 'pieces', column: 'new_measure_count', definition: 'INTEGER' },
+  { table: 'users', column: 'lesson_weekday', definition: 'INTEGER' },
 ]
 
 function addMissingColumns(db: DatabaseSync): void {

@@ -23,6 +23,18 @@ export function createSectionsRouter(db: DatabaseSync): Router {
       res.status(404).json({ error: 'Piece not found' })
       return
     }
+    // A path section (see src/lib/path/) must name one of this piece's own
+    // chunks and a known rung; a Free practice section names neither.
+    if (body.chunkId !== undefined || body.rung !== undefined) {
+      if (
+        typeof body.chunkId !== 'string' ||
+        !queries.isPathRung(body.rung) ||
+        !queries.chunkBelongsToPiece(db, userId, body.chunkId, body.pieceId)
+      ) {
+        res.status(400).json({ error: 'A path section needs a chunkId from this piece and a known rung' })
+        return
+      }
+    }
     const section: Section = {
       id: generateId(),
       pieceId: body.pieceId,
@@ -33,6 +45,8 @@ export function createSectionsRouter(db: DatabaseSync): Router {
       createdAt: Date.now(),
       handFilter: body.handFilter,
       mode: body.mode,
+      chunkId: body.chunkId,
+      rung: body.rung,
     }
     queries.createSection(db, userId, section)
     res.status(201).json(section)

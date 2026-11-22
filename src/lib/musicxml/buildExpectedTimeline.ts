@@ -146,12 +146,12 @@ export function getDefaultTempoBpm(osmd: OpenSheetMusicDisplay): number {
  * round suggested slow-practice tempos to numbers a student would actually
  * dial in, instead of arbitrary fractions like "53 BPM".
  */
-const METRONOME_DIAL_BPM = [
+export const METRONOME_DIAL_BPM = [
   40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 63, 66, 69, 72, 76, 80, 84, 88, 92, 96, 100, 104, 108, 112, 116, 120,
   126, 132, 138, 144, 152, 160, 168, 176, 184, 192, 200, 208,
 ]
 
-function nearestDialBpm(bpm: number): number {
+export function nearestDialBpm(bpm: number): number {
   return METRONOME_DIAL_BPM.reduce((closest, candidate) =>
     Math.abs(candidate - bpm) < Math.abs(closest - bpm) ? candidate : closest,
   )

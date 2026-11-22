@@ -5,6 +5,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 // unbundled, reusing these types for the SQL row mapping instead of a
 // parallel set of DTOs.
 import type { HandFilter } from '../musicxml/buildExpectedTimeline.ts'
+import type { PathRung } from '../path/types.ts'
 import type { AttemptAggregate, PracticeMode, StoredNoteResult } from '../scoring/types.ts'
 
 export interface Piece {
@@ -25,6 +26,10 @@ export interface Piece {
    * stored as a default here.
    */
   targetTempoBpm?: number
+  /** Set when a lesson marked the piece Finished — the teacher's verdict, whatever the path says. */
+  finishedAt?: number
+  /** Measures whose notes don't repeat an earlier measure — set when the piece is chunked. */
+  newMeasureCount?: number
 }
 
 export interface Section {
@@ -39,6 +44,14 @@ export interface Section {
   handFilter?: HandFilter
   /** Absent on sections created before Notes mode existed — treat as 'metronome'. */
   mode?: PracticeMode
+  /**
+   * Set only on sections the learning path created (see `src/lib/path/`):
+   * which chunk, and which rung of it, this section is. Free practice never
+   * sets these, and never reuses a section that has them — that's what keeps
+   * Free practice attempts from moving the path.
+   */
+  chunkId?: string
+  rung?: PathRung
 }
 
 export interface Attempt {

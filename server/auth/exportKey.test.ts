@@ -11,7 +11,8 @@ describe('export keys', () => {
     const bob = createUser(db, 'bob', 'a-good-password')!
     const key = createExportKey(db, alice.id, 'life')
     expect(resolveExportKey(db, key)).toBe(alice.id)
-    expect(resolveExportKey(db, key.slice(0, -1) + '0')).toBeUndefined()
+    // Flip the last hex digit to a *different* one: always writing '0' was a no-op whenever the random key already ended in 0.
+    expect(resolveExportKey(db, key.slice(0, -1) + (key.endsWith('0') ? '1' : '0'))).toBeUndefined()
     expect(resolveExportKey(db, createExportKey(db, bob.id, 'life'))).toBe(bob.id)
     expect(JSON.stringify(db.prepare('SELECT * FROM export_keys').all())).not.toContain(key)
   })

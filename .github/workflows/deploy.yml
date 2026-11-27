@@ -29,7 +29,7 @@ jobs:
     with:
       project: woodshed
       host: woodshed.waqasali.dev
-      health-path: /
+      health-path: /health
     secrets:
       SSH_HOST: ${{ secrets.HUB_SSH_HOST }}
       SSH_KEY: ${{ secrets.HUB_SSH_KEY }}

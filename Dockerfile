@@ -48,6 +48,11 @@ RUN mkdir -p /app/data
 
 ENV NODE_ENV=production
 ENV PORT=3000
+# The commit this image was built from, reported by /health so a deploy can wait
+# for the new release to be the one serving. Last, so it doesn't bust the cache of
+# anything above it.
+ARG GIT_SHA=unknown
+ENV GIT_SHA=$GIT_SHA
 EXPOSE 3000
 
 CMD ["node", "server/index.ts"]

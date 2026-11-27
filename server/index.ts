@@ -54,6 +54,11 @@ app.set('trust proxy', 1)
 // ever reaching auth middleware — see static.ts's own doc comment.
 mountStaticAssets(app, distDir)
 
+// For deploys, ahead of any auth. `sha` is the commit the image was built from
+// (GIT_SHA, a build arg), so a deploy can wait until the new release is the
+// one answering.
+app.get('/health', (_req, res) => void res.json({ ok: true, sha: process.env.GIT_SHA ?? 'unknown' }))
+
 // ---- Login and signup (session cookie) ----
 //
 // Multi-user (see schema.sql's `users` table). A username, not just a

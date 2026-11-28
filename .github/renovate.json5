@@ -1,0 +1,7 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  // Shared across my repos (hub's .github/renovate-preset.json5): weekly, grouped,
+  // actions pinned, hub.yml's images kept current. Nothing automerges: a merge to
+  // main deploys to production.
+  extends: ["github>WaqasAliAbbasi/hub//.github/renovate-preset.json5"],
+}

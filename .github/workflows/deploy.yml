@@ -2,8 +2,8 @@ name: deploy
 
 # Pushing to main deploys. Mirrors studentbase's deploy.yml: run the same
 # checks a PR would have to pass, then delegate to hub's reusable workflow,
-# which builds the image, pushes it to GHCR, and brings compose.yml up on the
-# box. See hub's docs/new-project.md.
+# which builds the image, pushes it to GHCR, and sends hub.yml to the box,
+# which turns it into the compose file and routes it runs. See hub's docs/new-project.md.
 on:
   push:
     branches: [main]

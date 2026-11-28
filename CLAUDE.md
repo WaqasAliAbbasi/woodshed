@@ -144,7 +144,7 @@ type-stripping — no build step, no `tsx`, see `index.ts`'s own comment):
   unlike the rest of the client codebase (Node's ESM loader needs them;
   Vite doesn't care either way).
 - No Traefik/`admin-auth@file` basic-auth in front of any of this (see
-  `compose.yml`) — a basic-auth 401 would break the MCP OAuth handshake
+  `hub.yml`) — a basic-auth 401 would break the MCP OAuth handshake
   before it ever reached the app.
 
 ## Things worth knowing before changing code
@@ -154,7 +154,7 @@ type-stripping — no build step, no `tsx`, see `index.ts`'s own comment):
   (`InputSourceSelector`) exist because of this, not as a nice-to-have —
   don't assume Web MIDI is always available.
 - **The SQLite database is real user data**, not a fixture — this app is
-  live (see `compose.yml`) and `server/schema.sql` is the source of truth
+  live (see `hub.yml`) and `server/schema.sql` is the source of truth
   now. It's bind-mounted at `./data` specifically so hub's nightly backup
   (which only walks `/srv/*/data`) can see it; a named volume would be
   invisible to that backup. Several `Attempt`/`Section` fields

@@ -1,0 +1,25 @@
+name: woodshed
+
+# Practice data lives server-side in SQLite, so it's reachable from a phone and
+# from Claude over MCP. No secrets file: logins are rows in the database.
+services:
+  web:
+    image: ghcr.io/waqasaliabbasi/woodshed:${IMAGE_TAG}
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_PATH: /app/data/woodshed.db
+      # The real HTTPS origin: it's the MCP OAuth issuer/resource URL, and the SDK
+      # rejects a non-HTTPS, non-localhost issuer outright.
+      PUBLIC_URL: https://woodshed.waqasali.dev
+    data:
+      # The only copy of everyone's practice history: under ./data, so it's backed up.
+      /app/data: .
+    # The image's own `node` user, which owns a fresh ./data.
+    user: "1000:1000"
+    routes:
+      # No admin-auth: a basic-auth 401 breaks the MCP OAuth handshake. Login is
+      # handled inside the app (server/auth/session.ts).
+      - hosts: [woodshed.waqasali.dev]
+        port: 3000
+    mem_limit: 256m

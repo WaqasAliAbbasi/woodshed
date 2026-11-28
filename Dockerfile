@@ -16,7 +16,7 @@ RUN npm run build
 
 # Runtime: a Node process now, not Caddy — see server/index.ts. It serves
 # the built dist/ *and* the API/MCP/OAuth routes *and* the SQLite database,
-# all from one process. See compose.yml's comment on why this app has a
+# all from one process. See hub.yml's comment on why this app has a
 # backend at all now, when it didn't before.
 FROM node:24-alpine AS runtime
 
@@ -40,7 +40,7 @@ COPY scripts ./scripts
 COPY src/lib ./src/lib
 COPY --from=build /app/dist ./dist
 
-# Belt-and-suspenders for a bare `docker run` with no bind mount — compose.yml
+# Belt-and-suspenders for a bare `docker run` with no bind mount — hub.yml's `data:`
 # mounts the real ./data over this and hub's deploy workflow creates that
 # mount point as uid 1000 before the container ever starts (see its
 # docs/new-project.md), which is what actually matters in production.

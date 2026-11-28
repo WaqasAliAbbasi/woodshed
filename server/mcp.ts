@@ -51,7 +51,7 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000
  * in "three days ago"; making it do that arithmetic itself is both wasted
  * tokens and a chance to get it wrong. UTC, because this process has no
  * idea what timezone the student is in (the container sets no TZ, see
- * compose.yml) — the same limitation `computeStreak`'s day boundaries
+ * hub.yml) — the same limitation `computeStreak`'s day boundaries
  * already run under.
  */
 function describeInstant(timestampMs: number, now: number): { at: string; daysAgo: number } {

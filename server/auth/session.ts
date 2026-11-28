@@ -145,10 +145,9 @@ function readCookie(req: Request, name: string): string | undefined {
 
 /**
  * `Secure` is skipped only for plain-HTTP local dev — everywhere this
- * actually runs (behind Traefik, see compose.yml) is HTTPS. Deliberately
+ * actually runs (behind Traefik, see hub.yml) is HTTPS. Deliberately
  * not `admin-auth@file`/Traefik basic-auth in front instead: a basic-auth
- * 401 breaks the MCP OAuth handshake before it ever reaches this app (the
- * same reason ynab-mcp's compose.yml gives for skipping it).
+ * 401 breaks the MCP OAuth handshake before it ever reaches this app .
  */
 export function setSessionCookie(res: Response, token: string, expiresAt: number, secure: boolean): void {
   const parts = [

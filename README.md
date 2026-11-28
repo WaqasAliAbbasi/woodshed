@@ -96,8 +96,8 @@ npm run server   # serves dist/ *and* the API/MCP/OAuth routes, on :3000
 The `Dockerfile` builds the client, then copies `server/`, `scripts/`,
 `src/lib/`, and `dist/` into a runtime image that just runs `node
 server/index.ts` — no compile step for the server (see its own comment on
-why). `compose.yml` wires that image into a Traefik edge network, with the
-SQLite database bind-mounted at `./data` so it's covered by hub's nightly
+why). `hub.yml` tells hub how to run that image and route to it, with the
+SQLite database bind-mounted from `./data` so it's covered by hub's nightly
 backup. `PUBLIC_URL` must be the real HTTPS origin in production — it's the
 MCP OAuth issuer/resource URL (RFC 8707), and the authorization router
 rejects a non-HTTPS, non-localhost issuer outright.

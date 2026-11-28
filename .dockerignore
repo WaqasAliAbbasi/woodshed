@@ -12,7 +12,7 @@ node_modules
 dist
 
 # Local dev database — never baked into the image, always written at
-# runtime past the bind mount (see compose.yml).
+# runtime past the bind mount (see hub.yml).
 data
 
 # Editors / local tooling

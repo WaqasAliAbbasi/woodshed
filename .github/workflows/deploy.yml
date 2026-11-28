@@ -30,9 +30,8 @@ jobs:
       project: woodshed
       host: woodshed.waqasali.dev
       health-path: /health
-    secrets:
-      SSH_HOST: ${{ secrets.HUB_SSH_HOST }}
-      SSH_KEY: ${{ secrets.HUB_SSH_KEY }}
+    # id-token: the OIDC token that logs in to the box's deploy door for this repo.
     permissions:
       contents: read
       packages: write
+      id-token: write
